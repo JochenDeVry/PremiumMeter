@@ -5,6 +5,19 @@
 **Status**: Draft  
 **Input**: User description: "Web application for analyzing stock options premium pricing with historical data visualization and real-time data collection from Yahoo Finance"
 
+## Clarifications
+
+### Session 2025-12-15
+
+- Q: Data scraping frequency and strategy? → A: Daily after market close (baseline) with user-configurable scheduling including: timezone-aware scheduling (handles DST changes), pause/resume controls, specific day selection (exclude holidays/weekends), and adjustable scrape times to account for market hour variations
+- Q: Strike price matching strategy for queries vs scraping? → A: Two-phase approach: (1) Scraping collects ALL available strike prices from Yahoo Finance for each expiration date (complete options chains), (2) Query interface provides flexible matching - users can specify exact strike, define custom percentage range (±X%), or request N nearest strikes above/below target, with all three options combinable and user-controlled
+- Q: Contract duration matching precision? → A: Exact day match - database stores actual expiration dates, queries match exact days-to-expiry. UX enhancement: users can input days directly OR use date picker to select expiration date (system auto-calculates days from query date to selected expiration)
+- Q: Greeks data handling strategy? → A: Calculate Greeks if missing - store Greeks when provided by Yahoo Finance, calculate using Black-Scholes model when not provided (requires stock price, strike, time to expiry, risk-free rate, implied volatility)
+- Q: Initial stock watchlist for MVP? → A: User-specified at installation - 54 stock initial watchlist (ADBE, AMD, BABA, GOOGL, GOOG, AMZN, AAL, AAPL, APLD, ACHR, TEAM, BMNR, BA, AVGO, CAVA, CMG, CEG, CRWV, ELV, RACE, GME, HIMS, INTC, KVUE, LULU, META, MSFT, MDB, NBIS, NFLX, NKE, NIO, NVDA, OKLO, OPEN, ORCL, OSCR, PLTR, PYPL, PLUG, RDDT, RGTI, HOOD, SRPT, SHOP, SNAP, SOFI, SOUN, SMMT, TGT, TSLA, VST, W, WFBR). Watchlist customizable by admin post-installation via User Story 3 interface.
+- Q: Users, roles, and security model? → A: **MVP (Phase 1)**: Single-user application with no authentication - assumes one trusted user with full access to all features (query, visualize, manage watchlist, configure scraper). **Post-MVP (Phase 2)**: Multi-user with role-based access control - authentication system with user accounts, two roles: (1) Admin role for managing users, scraper configuration, and watchlist; (2) Viewer role for querying and visualizing historical data only. Architecture must be designed from the start to support future migration to multi-user model (database schema includes user/role entities, API endpoints structured for permission checks, frontend components designed for conditional feature visibility).
+- Q: Data visibility and isolation model? → A: Shared data model - one global watchlist, all users see same historical data. Scraper monitors same stocks for everyone. This simplifies the database (single watchlist, one historical dataset, less storage) and allows all users to benefit from collective data collection. When Phase 2 multi-user is implemented, all authenticated users share the same premium data repository.
+- Q: Security priorities for MVP and beyond? → A: **MVP**: Standard web security - HTTPS deployment, basic input validation, SQL injection prevention, XSS protection. **Phase 2**: Add password hashing (bcrypt/argon2), session management, CSRF protection. Industry-standard baseline suitable for production deployment. No audit logging or rate limiting required for MVP, can be added later if needed.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Query Historical Premium Data (Priority: P1)
@@ -17,9 +30,11 @@ As an options trader, I want to input a stock ticker, strike price, and contract
 
 **Acceptance Scenarios**:
 
-1. **Given** the database contains historical premium data for META, **When** I select META, enter strike price $635, select 2-week duration, and choose "Put" option type, **Then** I see historical premium values (min, max, average) for matching contracts
-2. **Given** I have queried premium data, **When** I compare my target premium ($450) to the displayed historical range, **Then** I can determine if my expectation is realistic (e.g., if historical range is $400-$500, my target is reasonable)
-3. **Given** insufficient historical data exists for my exact criteria, **When** I submit my query, **Then** I see a message indicating limited data availability and the closest available matches
+1. **Given** the database contains historical premium data for META, **When** I select META, enter exact strike price $635, select 2-week duration, and choose "Put" option type, **Then** I see historical premium values (min, max, average) for contracts at exactly $635 strike
+2. **Given** I want to see a range of strikes, **When** I enter strike $635 with ±5% range, **Then** I see historical data for all strikes between $603.25 and $666.75
+3. **Given** I want to compare nearby strikes, **When** I enter strike $635 and request 3 nearest strikes above and below, **Then** I see data for the 3 closest strikes above $635 and 3 closest below $635
+4. **Given** I have queried premium data, **When** I compare my target premium ($450) to the displayed historical range, **Then** I can determine if my expectation is realistic (e.g., if historical range is $400-$500, my target is reasonable)
+5. **Given** insufficient historical data exists for my exact criteria, **When** I submit my query, **Then** I see a message indicating limited data availability and the closest available matches
 
 ---
 
@@ -65,7 +80,7 @@ As a user, I want to configure which US stocks the system monitors, so that hist
 
 ### User Story 4 - Automated Real-Time Data Collection (Priority: P1)
 
-As a system operator, I need the application to automatically scrape Yahoo Finance at regular intervals to collect current options contract data (strike prices, premiums, durations, Greeks) and store it in a growing historical database, so that users have access to continuously updated historical data.
+As a system operator, I need the application to automatically scrape Yahoo Finance at configurable intervals to collect current options contract data (strike prices, premiums, durations, Greeks) and store it in a growing historical database, so that users have access to continuously updated historical data.
 
 **Why this priority**: The entire application depends on having historical data. Without automated collection, there's no data to visualize or query. This is foundational infrastructure.
 
@@ -74,10 +89,28 @@ As a system operator, I need the application to automatically scrape Yahoo Finan
 **Acceptance Scenarios**:
 
 1. **Given** the application is initialized with a list of stocks, **When** the first scraping cycle runs, **Then** all available options contracts (calls and puts) for those stocks are retrieved from Yahoo Finance and stored in the database
-2. **Given** the scraper runs continuously, **When** each scheduled interval occurs (e.g., every hour), **Then** new options data is collected and appended to the historical database
+2. **Given** the scraper is configured with a daily schedule at market close, **When** each scheduled time occurs, **Then** new options data is collected and appended to the historical database
 3. **Given** options contracts expire, **When** the scraper encounters expired contracts, **Then** it marks them as expired rather than deleting the historical records
 4. **Given** Yahoo Finance is temporarily unavailable, **When** a scraping attempt fails, **Then** the system logs the error and retries on the next scheduled interval without data loss
 5. **Given** new options contracts are listed, **When** the scraper runs, **Then** previously unseen contracts are automatically added to the database
+
+---
+
+### User Story 5 - Configure Scraper Schedule (Priority: P2)
+
+As a system administrator, I want to configure when and how often the scraper runs, including timezone-aware scheduling, pause/resume controls, and day selection, so that data collection adapts to market hours, holidays, and daylight saving time changes.
+
+**Why this priority**: Essential for production reliability but can start with a hardcoded daily schedule for MVP. Scheduling flexibility prevents issues with DST changes, market holidays, and allows operational control.
+
+**Independent Test**: Can be tested by configuring different scrape times, pausing the scraper, excluding specific days, and verifying that scraping occurs only at configured times and honors pause states.
+
+**Acceptance Scenarios**:
+
+1. **Given** I am configuring the scraper schedule, **When** I set scrape time to "5:00 PM ET", **Then** the system automatically adjusts for daylight saving time changes without manual intervention
+2. **Given** the scraper is running, **When** I pause it via the admin interface, **Then** no scraping attempts occur until I resume it
+3. **Given** I want to exclude weekends and holidays, **When** I configure day exclusions (e.g., uncheck Saturday, Sunday, and mark 2025-12-25 as holiday), **Then** the scraper skips those days automatically
+4. **Given** market hours change seasonally, **When** I update the scrape time from 5:00 PM to 4:30 PM, **Then** all future scrapes occur at the new time without requiring system restart
+5. **Given** I configure multiple scrape times per day (e.g., 12:00 PM and 5:00 PM ET), **When** the schedule executes, **Then** data is collected at both times independently
 
 ---
 
@@ -97,19 +130,30 @@ As a system operator, I need the application to automatically scrape Yahoo Finan
 
 - **FR-001**: System MUST allow users to select a US stock ticker from a searchable list
 - **FR-002**: System MUST allow users to specify an option type (Call or Put)
-- **FR-003**: System MUST allow users to input or select a strike price
-- **FR-004**: System MUST allow users to select a contract duration (in days or weeks)
-- **FR-005**: System MUST display historical premium data (minimum, maximum, average) for the specified criteria
+- **FR-003**: System MUST allow users to input a strike price with three matching modes: exact strike, percentage range (±X%), or N nearest strikes above/below
+- **FR-004**: System MUST allow users to specify contract duration via either direct input (days to expiry) or date picker (selecting expiration date with automatic days calculation)
+- **FR-005**: System MUST display historical premium data (minimum, maximum, average) for the specified criteria across all matching strikes
 - **FR-006**: System MUST provide at least two visualization options: 2D time-series charts and 3D interactive surface plots
-- **FR-007**: System MUST automatically scrape Yahoo Finance at regular intervals to collect options contract data
-- **FR-008**: System MUST store collected options data including: ticker symbol, option type, strike price, premium, expiration date, and Greeks (theta, delta, gamma, vega)
+- **FR-007**: System MUST automatically scrape complete options chains (all available strike prices) from Yahoo Finance for each expiration date
+- **FR-008**: System MUST store collected options data including: ticker symbol, option type, strike price, premium, expiration date (actual date), and Greeks (theta, delta, gamma, vega) - Greeks sourced from Yahoo Finance when available, otherwise calculated using Black-Scholes model
 - **FR-009**: System MUST handle situations where exact criteria matches don't exist by showing closest available data or indicating insufficient data
-- **FR-010**: System MUST allow users to add and remove US stock tickers from a monitored watchlist
+- **FR-010**: System MUST allow administrators to add and remove US stock tickers from a monitored watchlist
 - **FR-011**: System MUST validate that ticker symbols are valid US stocks before adding to watchlist
 - **FR-012**: System MUST retain all historical data even when stocks are removed from the watchlist
 - **FR-013**: System MUST display tooltips or detail panels showing exact values when users interact with chart visualizations
 - **FR-014**: System MUST log scraping errors and retry on subsequent intervals without stopping data collection
 - **FR-015**: System MUST distinguish between expired and active options contracts in the database
+- **FR-016**: System MUST allow administrators to configure scraper schedule with timezone-aware times (handles DST automatically)
+- **FR-017**: System MUST provide pause/resume controls for the scraper via admin interface
+- **FR-018**: System MUST allow administrators to exclude specific days from scraping schedule (weekends, holidays)
+- **FR-019**: System MUST allow administrators to configure multiple scrape times per day
+- **FR-020**: System MUST apply schedule changes without requiring system restart
+- **FR-021**: System MUST initialize with a predefined watchlist of 54 stocks at installation (customizable post-installation)
+- **FR-022**: System MUST be deployed with HTTPS (TLS/SSL) for encrypted communication
+- **FR-023**: System MUST validate and sanitize all user inputs to prevent SQL injection and XSS attacks
+- **FR-024** *(Phase 2)*: System MUST hash passwords using industry-standard algorithms (bcrypt or argon2) - not stored in plain text
+- **FR-025** *(Phase 2)*: System MUST implement session management with secure cookies (HttpOnly, Secure, SameSite flags)
+- **FR-026** *(Phase 2)*: System MUST implement CSRF protection for state-changing operations
 
 ### Key Entities *(include if feature involves data)*
 
@@ -118,6 +162,9 @@ As a system operator, I need the application to automatically scrape Yahoo Finan
 - **Watchlist**: Represents the collection of stocks being actively monitored; attributes include ticker symbols, monitoring status (active/inactive), date added
 - **Historical Premium Record**: Represents a point-in-time snapshot of an options contract; attributes include all option contract attributes plus the timestamp when data was collected
 - **User Query**: Represents search criteria for historical data; attributes include ticker, option type, strike price, duration range, date range
+- **Scraper Schedule**: Represents scraping configuration; attributes include scrape times (timezone-aware), excluded days, pause status, last run timestamp, next scheduled run
+- **User** *(Phase 2)*: Represents an application user; attributes include username, email, password hash, role reference, account status (active/inactive), created timestamp, last login timestamp
+- **Role** *(Phase 2)*: Represents user permission level; attributes include role name (Admin, Viewer), permissions (manage_users, manage_watchlist, configure_scraper, query_data, view_charts)
 
 ## Success Criteria *(mandatory)*
 
@@ -132,15 +179,82 @@ As a system operator, I need the application to automatically scrape Yahoo Finan
 - **SC-007**: The system processes at least 100 options contracts per stock per scraping cycle
 - **SC-008**: Scraping errors are logged and do not cause system downtime or data corruption
 
+## Initial Watchlist Configuration *(mandatory)*
+
+The system initializes with 54 pre-configured stocks for data collection. This list is customizable by administrators post-installation.
+
+| Ticker | Company Name |
+|--------|--------------|
+| ADBE | Adobe Inc. |
+| AMD | Advanced Micro Devices Inc. |
+| BABA | Alibaba Group Holding Ltd - ADR |
+| GOOGL | Alphabet Inc. Class A |
+| GOOG | Alphabet Inc. Class C |
+| AMZN | Amazon.com Inc. |
+| AAL | American Airlines Group Inc. |
+| AAPL | Apple Inc. |
+| APLD | Applied Digital Corp. |
+| ACHR | Archer Aviation Inc. |
+| TEAM | Atlassian Corporation Plc |
+| BMNR | BitMine Immersion Technologies Inc |
+| BA | Boeing Co. |
+| AVGO | Broadcom Inc. |
+| CAVA | CAVA Group Inc. |
+| CMG | Chipotle Mexican Grill Inc. |
+| CEG | Constellation Energy Corp |
+| CRWV | CoreWeave Inc. |
+| ELV | Elevance Health Inc. |
+| RACE | Ferrari NV |
+| GME | GameStop Corp. |
+| HIMS | Hims & Hers Health Inc. |
+| INTC | Intel Corp. |
+| KVUE | Kenvue Inc. |
+| LULU | Lululemon Athletica Inc. |
+| META | Meta Platforms Inc. |
+| MSFT | Microsoft Corp. |
+| MDB | MongoDB Inc. |
+| NBIS | Nebius Group NV |
+| NFLX | Netflix Inc. |
+| NKE | Nike Inc. |
+| NIO | Nio Inc. - ADR |
+| NVDA | NVIDIA Corp. |
+| OKLO | Oklo Inc. |
+| OPEN | Opendoor Technologies Inc. |
+| ORCL | Oracle Corp. |
+| OSCR | Oscar Health Inc. |
+| PLTR | Palantir Technologies Inc. |
+| PYPL | PayPal Holdings Inc. |
+| PLUG | Plug Power |
+| RDDT | Reddit Inc. |
+| RGTI | Rigetti Computing, Inc. |
+| HOOD | Robinhood Markets Inc. |
+| SRPT | Sarepta Therapeutics Inc. |
+| SHOP | Shopify Inc. |
+| SNAP | Snap Inc. |
+| SOFI | SoFi Technologies Inc |
+| SOUN | SoundHound AI Inc |
+| SMMT | Summit Therapeutics Plc |
+| TGT | Target Corp. |
+| TSLA | Tesla Inc. |
+| VST | Vistra Corp. |
+| W | Wayfair Inc. |
+| WFBR | WhiteFiber Inc. |
+
+**Total**: 54 stocks covering technology, healthcare, retail, energy, financial services, and emerging technology sectors.
+
 ## Assumptions *(optional)*
 
 - Yahoo Finance will remain a viable free data source for options data, or alternatives are acceptable if Yahoo Finance access becomes restricted
 - Users have basic understanding of options trading terminology (calls, puts, strike prices, premiums, Greeks)
-- Initial deployment will monitor a limited set of stocks (10-50) with expansion capability
-- Data scraping interval will be hourly or daily, balancing data freshness with system load
+- Initial watchlist of 54 stocks provides comprehensive coverage while remaining manageable for MVP deployment
+- Data scraping interval will be daily after market close, balancing data freshness with system load
 - Users access the application via modern web browsers (Chrome, Firefox, Safari, Edge - latest 2 versions)
 - Historical data quality improves over time as the database grows; initial queries may have limited historical depth
 - Options contract data from Yahoo Finance includes all necessary attributes (Greeks may require calculation if not directly provided)
+- All 54 initial watchlist stocks have active options markets on Yahoo Finance
+- Architecture will be designed to support future authentication and role-based access control, even though MVP is single-user (database schema includes User and Role entities from start, API endpoints structured to add permission checks later, frontend designed for conditional feature rendering)
+- All users share the same historical premium dataset (shared data model); no per-user data isolation required
+- Application will be deployed with HTTPS and follow standard web security practices (input validation, SQL injection prevention, XSS protection)
 
 ## Out of Scope *(optional)*
 
@@ -149,7 +263,7 @@ As a system operator, I need the application to automatically scrape Yahoo Finan
 - Integration with brokerage accounts
 - Options strategy recommendations or AI-powered predictions
 - Mobile native applications (web-responsive design is sufficient)
-- User authentication and multi-user accounts (can be single-user or assumed authenticated for MVP)
+- User authentication and multi-user accounts (deferred to Phase 2 post-MVP; MVP is single-user with full access)
 - Portfolio tracking or position management
 - News feed or market sentiment analysis
 - Options pricing calculators (Black-Scholes, etc.) beyond displaying collected premium data
@@ -163,6 +277,8 @@ As a system operator, I need the application to automatically scrape Yahoo Finan
 - Database system capable of handling time-series data with good query performance
 - Charting library supporting 3D interactive visualizations (e.g., Plotly, Three.js, D3.js)
 - Reliable internet connectivity for continuous data collection
+- SSL/TLS certificate for HTTPS deployment (can use Let's Encrypt for free certificates)
+- Web framework with built-in security features (input validation, parameterized queries, XSS escaping)
 
 ## Risks & Mitigations *(optional)*
 

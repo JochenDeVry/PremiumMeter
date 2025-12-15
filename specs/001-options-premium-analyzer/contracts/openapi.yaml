@@ -1,0 +1,870 @@
+openapi: 3.0.3
+info:
+  title: Options Premium Analyzer API
+  description: API for querying historical options premium data, managing stock watchlists, and configuring data scraping schedules
+  version: 1.0.0
+  contact:
+    name: Premium Meter Team
+
+servers:
+  - url: https://premiummeter.com/api
+    description: Production server
+  - url: http://localhost:8000/api
+    description: Development server
+
+tags:
+  - name: Query
+    description: Premium data query endpoints (User Story 1 & 2)
+  - name: Watchlist
+    description: Stock watchlist management (User Story 3)
+  - name: Scheduler
+    description: Scraper schedule configuration (User Story 5)
+  - name: Stocks
+    description: Stock information endpoints
+
+paths:
+  # ============================================================================
+  # Query Endpoints (User Story 1: Query Historical Premium Data)
+  # ============================================================================
+  
+  /query/premium:
+    post:
+      tags:
+        - Query
+      summary: Query historical premium data
+      description: |
+        Retrieve historical premium statistics (min, max, avg) for options contracts
+        matching the specified criteria. Supports three strike price matching modes:
+        exact strike, percentage range, or N nearest strikes.
+        
+        Maps to User Story 1 acceptance scenarios 1-5.
+      operationId: queryPremium
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PremiumQueryRequest'
+            examples:
+              exactStrike:
+                summary: Exact strike price match
+                value:
+                  ticker: META
+                  option_type: put
+                  strike_mode: exact
+                  strike_price: 635.00
+                  duration_days: 14
+                  lookback_days: 90
+              percentageRange:
+                summary: Strike price percentage range
+                value:
+                  ticker: AAPL
+                  option_type: call
+                  strike_mode: percentage_range
+                  strike_price: 180.00
+                  strike_range_percent: 5.0
+                  duration_days: 30
+                  lookback_days: 60
+              nearestStrikes:
+                summary: N nearest strikes above and below
+                value:
+                  ticker: NVDA
+                  option_type: call
+                  strike_mode: nearest
+                  strike_price: 500.00
+                  nearest_count_above: 3
+                  nearest_count_below: 3
+                  duration_days: 7
+                  lookback_days: 30
+      responses:
+        '200':
+          description: Successful query with premium statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PremiumQueryResponse'
+              example:
+                ticker: META
+                option_type: put
+                query_timestamp: '2025-12-15T18:30:00Z'
+                results:
+                  - strike_price: 635.00
+                    duration_days: 14
+                    data_points: 45
+                    min_premium: 8.50
+                    max_premium: 12.75
+                    avg_premium: 10.20
+                    latest_premium: 11.00
+                    greeks_avg:
+                      delta: -0.35
+                      gamma: 0.008
+                      theta: -0.15
+                      vega: 0.22
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: invalid_parameters
+                message: "strike_price must be positive"
+                details:
+                  field: strike_price
+                  value: -100
+        '404':
+          description: No data found for query criteria
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: no_data_found
+                message: "No historical data available for META put options at $635 strike"
+                suggestion: "Try expanding lookback_days or using percentage_range strike mode"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /query/chart-data:
+    post:
+      tags:
+        - Query
+      summary: Get premium data formatted for 3D/2D charts
+      description: |
+        Retrieve historical premium data structured for visualization in 3D surface plots
+        or 2D time-series charts. Returns premium grid indexed by strike prices and durations.
+        
+        Maps to User Story 2 acceptance scenarios 1-4.
+      operationId: getChartData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChartDataRequest'
+      responses:
+        '200':
+          description: Chart data successfully generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartDataResponse'
+              example:
+                ticker: TSLA
+                option_type: call
+                chart_type: surface_3d
+                strike_prices: [850, 875, 900, 925, 950]
+                durations_days: [7, 14, 21, 30]
+                premium_grid:
+                  - [12.5, 18.2, 22.1, 28.5]
+                  - [15.0, 20.5, 25.3, 31.2]
+                  - [18.5, 24.1, 29.0, 35.8]
+                  - [22.0, 28.5, 33.5, 41.2]
+                  - [26.5, 33.2, 38.9, 47.5]
+                collection_period:
+                  start: '2025-09-15T00:00:00Z'
+                  end: '2025-12-15T00:00:00Z'
+        '400':
+          description: Invalid chart parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================================================================
+  # Watchlist Endpoints (User Story 3: Manage Stock Watchlist)
+  # ============================================================================
+  
+  /watchlist:
+    get:
+      tags:
+        - Watchlist
+      summary: Get current stock watchlist
+      description: Retrieve all stocks in the watchlist with their monitoring status
+      operationId: getWatchlist
+      responses:
+        '200':
+          description: Watchlist retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchlistResponse'
+              example:
+                watchlist:
+                  - stock_id: 1
+                    ticker: AAPL
+                    company_name: Apple Inc.
+                    monitoring_status: active
+                    date_added: '2025-12-01T00:00:00Z'
+                  - stock_id: 2
+                    ticker: META
+                    company_name: Meta Platforms Inc.
+                    monitoring_status: active
+                    date_added: '2025-12-01T00:00:00Z'
+                total_count: 54
+    
+    post:
+      tags:
+        - Watchlist
+      summary: Add stock to watchlist
+      description: |
+        Add a new stock ticker to the watchlist for monitoring. System validates
+        ticker against Yahoo Finance before adding.
+        
+        Maps to User Story 3 acceptance scenario 1.
+      operationId: addToWatchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddWatchlistRequest'
+            example:
+              ticker: AAPL
+      responses:
+        '201':
+          description: Stock added to watchlist successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchlistItemResponse'
+              example:
+                stock_id: 1
+                ticker: AAPL
+                company_name: Apple Inc.
+                monitoring_status: active
+                date_added: '2025-12-15T18:30:00Z'
+                message: "Stock AAPL added to watchlist. Scraping will begin on next scheduled run."
+        '400':
+          description: Invalid ticker or already in watchlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: invalid_ticker
+                message: "Ticker 'INVALID' is not recognized as a valid US stock"
+        '409':
+          description: Stock already in watchlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: already_exists
+                message: "Stock AAPL is already in the watchlist"
+  
+  /watchlist/{ticker}:
+    delete:
+      tags:
+        - Watchlist
+      summary: Remove stock from watchlist
+      description: |
+        Remove a stock from active monitoring. Historical data is retained.
+        
+        Maps to User Story 3 acceptance scenario 2.
+      operationId: removeFromWatchlist
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          schema:
+            type: string
+            example: TSLA
+      responses:
+        '200':
+          description: Stock removed from watchlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                message: "Stock TSLA removed from watchlist. Historical data retained."
+        '404':
+          description: Stock not in watchlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: not_found
+                message: "Stock TSLA is not in the watchlist"
+
+  # ============================================================================
+  # Scheduler Endpoints (User Story 5: Configure Scraper Schedule)
+  # ============================================================================
+  
+  /scheduler/config:
+    get:
+      tags:
+        - Scheduler
+      summary: Get current scraper schedule configuration
+      description: Retrieve the current scraping schedule settings
+      operationId: getSchedulerConfig
+      responses:
+        '200':
+          description: Scheduler configuration retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulerConfigResponse'
+              example:
+                scrape_time: '17:00:00'
+                timezone: America/New_York
+                enabled: true
+                excluded_days:
+                  - saturday
+                  - sunday
+                  - '2025-12-25'
+                last_run: '2025-12-14T22:00:00Z'
+                next_run: '2025-12-15T22:00:00Z'
+                status: idle
+    
+    put:
+      tags:
+        - Scheduler
+      summary: Update scraper schedule configuration
+      description: |
+        Update scraping schedule settings. Changes take effect immediately without
+        requiring system restart.
+        
+        Maps to User Story 5 acceptance scenarios 1, 3, 4, 5.
+      operationId: updateSchedulerConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSchedulerConfigRequest'
+            examples:
+              changeTime:
+                summary: Change scrape time
+                value:
+                  scrape_time: '16:30:00'
+                  timezone: America/New_York
+              excludeDays:
+                summary: Exclude weekends and holidays
+                value:
+                  excluded_days:
+                    - saturday
+                    - sunday
+                    - '2025-12-25'
+                    - '2026-01-01'
+              multipleScrapeTimes:
+                summary: Multiple daily scrapes (future enhancement)
+                value:
+                  scrape_times:
+                    - '12:00:00'
+                    - '17:00:00'
+                  timezone: America/New_York
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulerConfigResponse'
+        '400':
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: invalid_timezone
+                message: "Timezone 'Invalid/Zone' is not recognized"
+  
+  /scheduler/pause:
+    post:
+      tags:
+        - Scheduler
+      summary: Pause scraper
+      description: |
+        Pause all scraping operations. No scraping will occur until resumed.
+        
+        Maps to User Story 5 acceptance scenario 2.
+      operationId: pauseScheduler
+      responses:
+        '200':
+          description: Scraper paused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                message: "Scraper paused. No scraping will occur until resumed."
+  
+  /scheduler/resume:
+    post:
+      tags:
+        - Scheduler
+      summary: Resume scraper
+      description: Resume scraping operations after being paused
+      operationId: resumeScheduler
+      responses:
+        '200':
+          description: Scraper resumed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                message: "Scraper resumed. Next run scheduled for 2025-12-15T22:00:00Z"
+
+  # ============================================================================
+  # Stock Information Endpoints
+  # ============================================================================
+  
+  /stocks:
+    get:
+      tags:
+        - Stocks
+      summary: List all available stocks
+      description: Get list of all stocks in the system (watchlist + historical)
+      operationId: listStocks
+      parameters:
+        - name: status
+          in: query
+          description: Filter by stock status
+          schema:
+            type: string
+            enum: [active, delisted, inactive]
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Stock list retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockListResponse'
+
+  /stocks/{ticker}:
+    get:
+      tags:
+        - Stocks
+      summary: Get stock details
+      description: Retrieve detailed information about a specific stock
+      operationId: getStockDetails
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          schema:
+            type: string
+            example: AAPL
+      responses:
+        '200':
+          description: Stock details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockDetailsResponse'
+              example:
+                stock_id: 1
+                ticker: AAPL
+                company_name: Apple Inc.
+                current_price: 195.50
+                status: active
+                in_watchlist: true
+                data_points_count: 12543
+                earliest_data: '2025-09-15T00:00:00Z'
+                latest_data: '2025-12-15T00:00:00Z'
+        '404':
+          description: Stock not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# ==============================================================================
+# Component Schemas
+# ==============================================================================
+
+components:
+  schemas:
+    # Query Schemas
+    PremiumQueryRequest:
+      type: object
+      required:
+        - ticker
+        - option_type
+        - strike_mode
+        - strike_price
+        - duration_days
+      properties:
+        ticker:
+          type: string
+          description: Stock ticker symbol
+          example: META
+        option_type:
+          type: string
+          enum: [call, put]
+          description: Option type
+          example: put
+        strike_mode:
+          type: string
+          enum: [exact, percentage_range, nearest]
+          description: Strike price matching mode
+          example: exact
+        strike_price:
+          type: number
+          format: double
+          description: Target strike price
+          example: 635.00
+          minimum: 0.01
+        strike_range_percent:
+          type: number
+          format: double
+          description: Percentage range for strike matching (required if strike_mode=percentage_range)
+          example: 5.0
+          minimum: 0.1
+          maximum: 100
+        nearest_count_above:
+          type: integer
+          description: Number of nearest strikes above target (required if strike_mode=nearest)
+          example: 3
+          minimum: 1
+          maximum: 10
+        nearest_count_below:
+          type: integer
+          description: Number of nearest strikes below target (required if strike_mode=nearest)
+          example: 3
+          minimum: 1
+          maximum: 10
+        duration_days:
+          type: integer
+          description: Contract duration in days to expiry
+          example: 14
+          minimum: 1
+        duration_tolerance_days:
+          type: integer
+          description: Tolerance for duration matching (±days)
+          example: 1
+          default: 1
+        lookback_days:
+          type: integer
+          description: How many days of historical data to query
+          example: 90
+          default: 90
+          minimum: 1
+          maximum: 365
+    
+    PremiumQueryResponse:
+      type: object
+      properties:
+        ticker:
+          type: string
+          example: META
+        option_type:
+          type: string
+          example: put
+        query_timestamp:
+          type: string
+          format: date-time
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PremiumStatistics'
+    
+    PremiumStatistics:
+      type: object
+      properties:
+        strike_price:
+          type: number
+          format: double
+        duration_days:
+          type: integer
+        data_points:
+          type: integer
+          description: Number of historical data points used
+        min_premium:
+          type: number
+          format: double
+        max_premium:
+          type: number
+          format: double
+        avg_premium:
+          type: number
+          format: double
+        latest_premium:
+          type: number
+          format: double
+          description: Most recent premium value
+        greeks_avg:
+          $ref: '#/components/schemas/GreeksAverages'
+    
+    GreeksAverages:
+      type: object
+      properties:
+        delta:
+          type: number
+          format: double
+        gamma:
+          type: number
+          format: double
+        theta:
+          type: number
+          format: double
+        vega:
+          type: number
+          format: double
+    
+    ChartDataRequest:
+      type: object
+      required:
+        - ticker
+        - option_type
+        - chart_type
+      properties:
+        ticker:
+          type: string
+        option_type:
+          type: string
+          enum: [call, put]
+        chart_type:
+          type: string
+          enum: [surface_3d, timeseries_2d, heatmap]
+        strike_min:
+          type: number
+          format: double
+        strike_max:
+          type: number
+          format: double
+        duration_min_days:
+          type: integer
+        duration_max_days:
+          type: integer
+        lookback_days:
+          type: integer
+          default: 90
+    
+    ChartDataResponse:
+      type: object
+      properties:
+        ticker:
+          type: string
+        option_type:
+          type: string
+        chart_type:
+          type: string
+        strike_prices:
+          type: array
+          items:
+            type: number
+        durations_days:
+          type: array
+          items:
+            type: integer
+        premium_grid:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+          description: 2D array [strikes][durations] of premium values
+        collection_period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+    
+    # Watchlist Schemas
+    WatchlistResponse:
+      type: object
+      properties:
+        watchlist:
+          type: array
+          items:
+            $ref: '#/components/schemas/WatchlistItem'
+        total_count:
+          type: integer
+    
+    WatchlistItem:
+      type: object
+      properties:
+        stock_id:
+          type: integer
+        ticker:
+          type: string
+        company_name:
+          type: string
+        monitoring_status:
+          type: string
+          enum: [active, paused]
+        date_added:
+          type: string
+          format: date-time
+    
+    AddWatchlistRequest:
+      type: object
+      required:
+        - ticker
+      properties:
+        ticker:
+          type: string
+          example: AAPL
+          pattern: '^[A-Z]{1,10}$'
+    
+    WatchlistItemResponse:
+      allOf:
+        - $ref: '#/components/schemas/WatchlistItem'
+        - type: object
+          properties:
+            message:
+              type: string
+    
+    # Scheduler Schemas
+    SchedulerConfigResponse:
+      type: object
+      properties:
+        scrape_time:
+          type: string
+          format: time
+          description: Scrape time in timezone specified
+          example: '17:00:00'
+        timezone:
+          type: string
+          description: IANA timezone identifier
+          example: America/New_York
+        enabled:
+          type: boolean
+        excluded_days:
+          type: array
+          items:
+            type: string
+          description: Day names (lowercase) or ISO dates (YYYY-MM-DD)
+          example: ["saturday", "sunday", "2025-12-25"]
+        last_run:
+          type: string
+          format: date-time
+          nullable: true
+        next_run:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [idle, running, error]
+    
+    UpdateSchedulerConfigRequest:
+      type: object
+      properties:
+        scrape_time:
+          type: string
+          format: time
+          example: '17:00:00'
+        timezone:
+          type: string
+          example: America/New_York
+        excluded_days:
+          type: array
+          items:
+            type: string
+    
+    # Stock Schemas
+    StockListResponse:
+      type: object
+      properties:
+        stocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Stock'
+        total_count:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    
+    Stock:
+      type: object
+      properties:
+        stock_id:
+          type: integer
+        ticker:
+          type: string
+        company_name:
+          type: string
+        current_price:
+          type: number
+          format: double
+          nullable: true
+        status:
+          type: string
+          enum: [active, delisted, inactive]
+    
+    StockDetailsResponse:
+      allOf:
+        - $ref: '#/components/schemas/Stock'
+        - type: object
+          properties:
+            in_watchlist:
+              type: boolean
+            data_points_count:
+              type: integer
+            earliest_data:
+              type: string
+              format: date-time
+              nullable: true
+            latest_data:
+              type: string
+              format: date-time
+              nullable: true
+    
+    # Common Schemas
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+    
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details (optional)
+          nullable: true
+
+  securitySchemes:
+    # Phase 2: JWT Bearer authentication
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authenticated users (Phase 2 only)
+
+# Phase 2: Apply security to admin endpoints
+# security:
+#   - bearerAuth: []
