@@ -109,6 +109,7 @@ Represents a point-in-time snapshot of an options contract premium and Greeks.
 - `option_type` (String[10], Not Null): 'call' or 'put'
 - `strike_price` (Decimal[10,2], Not Null): Option strike price
 - `premium` (Decimal[10,2], Not Null): Option premium (last traded price)
+- `stock_price_at_collection` (Decimal[10,2], Not Null): Current stock price when premium was collected (critical for moneyness analysis)
 - `expiration_date` (Date, Not Null): Contract expiration date
 - `collection_timestamp` (Timestamp with timezone, Not Null): When data was scraped
 - `delta` (Decimal[8,6], Nullable): Delta Greek (rate of change relative to stock price)
@@ -129,7 +130,7 @@ Represents a point-in-time snapshot of an options contract premium and Greeks.
 
 **Validation Rules**:
 - Option type must be 'call' or 'put'
-- Strike price and premium must be positive
+- Strike price, premium, and stock_price_at_collection must be positive
 - Expiration date must be future date at time of insertion
 - Delta range: -1.0 to 1.0 (calls: 0 to 1, puts: -1 to 0)
 - Gamma, theta, vega must be reasonable ranges (validated in application layer)
@@ -139,10 +140,11 @@ Represents a point-in-time snapshot of an options contract premium and Greeks.
 - Many-to-One with Stock (many records belong to one stock)
 
 **Business Logic**:
-- TimescaleDB hypertable partitioned by `collection_timestamp` (monthly chunks)
+- TimescaleDB hypertable partitioned by `collection_timestamp` (daily chunks for intra-day polling)
+- Stock price captured at collection time enables moneyness analysis (In-The-Money, At-The-Money, Out-Of-The-Money)
 - Greeks populated from Yahoo Finance if available, otherwise calculated via Black-Scholes
 - Contract status changes to 'expired' when `expiration_date` < current date (scheduled job)
-- Continuous aggregate materialized view for daily min/max/avg premiums
+- Continuous aggregate materialized view for daily min/max/avg premiums with stock price ranges
 
 **Query Patterns**:
 ```sql
@@ -215,35 +217,43 @@ Represents the collection of stocks actively monitored for options data scraping
 
 ### ScraperSchedule
 
-Represents the configuration for automated options data scraping.
+Represents the configuration for automated options data polling with intra-day frequency.
 
 **Attributes**:
 - `id` (Integer, Primary Key): Auto-incrementing unique identifier (singleton - only one row)
-- `scrape_time_utc` (Time, Not Null): Base scrape time in UTC (converted from timezone)
-- `timezone` (String[50], Not Null): Timezone name (e.g., 'America/New_York') for DST handling
-- `enabled` (Boolean, Default=true): Whether scraper is running
+- `polling_interval_minutes` (Integer, Not Null, Default=5): Frequency of polling in minutes (1-60)
+- `market_hours_start` (Time, Not Null, Default='09:30:00'): Market open time (local to timezone)
+- `market_hours_end` (Time, Not Null, Default='16:00:00'): Market close time (local to timezone)
+- `timezone` (String[50], Not Null, Default='America/New_York'): Timezone name for market hours (pytz format)
+- `enabled` (Boolean, Default=true): Whether polling is active
 - `excluded_days` (JSON Array, Nullable): Days to skip, e.g., `["saturday", "sunday", "2025-12-25"]`
-- `last_run` (Timestamp with timezone, Nullable): When scraper last executed
-- `next_run` (Timestamp with timezone, Nullable): Calculated next execution time
-- `status` (String[20], Default='idle'): 'idle', 'running', 'error'
+- `last_run` (Timestamp with timezone, Nullable): When last poll completed
+- `next_run` (Timestamp with timezone, Nullable): Calculated next poll time
+- `status` (String[20], Default='idle'): 'idle', 'running', 'paused', 'error'
 
 **Indexes**:
 - Primary key on `id`
+- Index on `enabled`
+- Index on `next_run` for scheduler queries
 - Unique constraint ensuring only one row (application-level enforcement)
 
 **Validation Rules**:
+- Polling interval must be between 1 and 60 minutes
+- Market hours start must be before market hours end
 - Timezone must be valid pytz timezone string
 - Excluded days format: day names (lowercase) or ISO dates (YYYY-MM-DD)
-- Scrape time must be valid 24-hour time (HH:MM:SS)
+- Status must be one of: 'idle', 'running', 'paused', 'error'
 
 **Relationships**:
 - Standalone table (no foreign keys)
 
 **Business Logic**:
-- APScheduler reads this configuration to set CronTrigger
-- Admin UI updates this table; APScheduler reschedules job dynamically
-- `next_run` calculated by APScheduler based on timezone + excluded_days
-- Status changes: 'idle' → 'running' (scrape starts) → 'idle' (success) or 'error' (failure)
+- APScheduler reads this configuration to set IntervalTrigger with polling_interval_minutes
+- Polling only occurs during market_hours_start to market_hours_end window (checked before each execution)
+- Admin UI updates this table; APScheduler reschedules job dynamically without restart
+- `next_run` calculated by APScheduler based on polling_interval_minutes + market hours + timezone + excluded_days
+- Status changes: 'idle' → 'running' (poll starts) → 'idle' (success) or 'error' (failure)
+- Pause sets status='paused', prevents execution until resumed
 
 ---
 
