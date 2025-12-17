@@ -101,14 +101,39 @@ async def root():
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on application startup"""
+    from src.database.connection import get_db
+    from src.services.scheduler import get_scheduler_service
+    
     logger.info("Starting Options Premium Analyzer API...")
-    # TODO: Initialize APScheduler and load scraper configuration (Phase 3, T034)
+    
+    # Initialize APScheduler with database configuration
+    try:
+        db = next(get_db())
+        scheduler_service = get_scheduler_service()
+        scheduler_service.initialize(db)
+        logger.info("Scheduler initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize scheduler: {e}", exc_info=True)
+        logger.warning("API will start without scheduler")
+    finally:
+        db.close()
+    
     logger.info("API startup complete")
 
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on application shutdown"""
+    from src.services.scheduler import get_scheduler_service
+    
     logger.info("Shutting down Options Premium Analyzer API...")
-    # TODO: Shutdown scheduler gracefully (Phase 3)
+    
+    # Shutdown scheduler gracefully
+    try:
+        scheduler_service = get_scheduler_service()
+        scheduler_service.shutdown()
+        logger.info("Scheduler shut down successfully")
+    except Exception as e:
+        logger.error(f"Error shutting down scheduler: {e}", exc_info=True)
+    
     logger.info("API shutdown complete")
