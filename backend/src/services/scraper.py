@@ -10,11 +10,13 @@ References:
 """
 
 import yfinance as yf
+import pandas as pd
 from datetime import datetime, date
 from typing import List, Dict, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 import logging
+import time
 
 from ..models.stock import Stock, StockStatus
 from ..models.historical_premium_record import HistoricalPremiumRecord, OptionType, ContractStatus
@@ -97,6 +99,9 @@ class YahooFinanceScraper:
         
         for stock in active_stocks:
             try:
+                # Add delay between stocks to avoid rate limiting
+                time.sleep(1)
+                
                 contracts_count = self._scrape_stock(stock)
                 metrics.successful_stocks += 1
                 metrics.total_contracts += contracts_count
@@ -147,18 +152,50 @@ class YahooFinanceScraper:
         """
         ticker_obj = yf.Ticker(stock.ticker)
         
-        # Get current stock price
+        # Get current stock price using fast_info (more reliable in yfinance 0.2.66+)
         try:
-            info = ticker_obj.info
-            current_price = info.get('currentPrice') or info.get('regularMarketPrice')
-            if not current_price:
-                raise ValueError(f"Could not retrieve current price for {stock.ticker}")
+            # Try fast_info first (preferred method in newer versions)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    fast_info = ticker_obj.fast_info
+                    current_price = fast_info.get('lastPrice') or fast_info.get('last_price')
+                    if current_price and current_price > 0:
+                        break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                        logger.warning(f"Retry {attempt + 1}/{max_retries} for {stock.ticker} fast_info: {e}")
+                    else:
+                        raise
+            
+            # Fallback to history if fast_info didn't work
+            if not current_price or current_price <= 0:
+                hist = ticker_obj.history(period="1d")
+                if hist.empty:
+                    raise ValueError(f"No price data available")
+                current_price = float(hist['Close'].iloc[-1])
+            
+            if not current_price or current_price <= 0:
+                raise ValueError(f"Invalid price: {current_price}")
         except Exception as e:
-            raise ValueError(f"Failed to fetch stock info: {e}")
+            raise ValueError(f"Failed to fetch stock price: {e}")
         
         # Get all available expiration dates
         try:
-            expirations = ticker_obj.options
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    expirations = ticker_obj.options
+                    if expirations:
+                        break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                        logger.warning(f"Retry {attempt + 1}/{max_retries} for {stock.ticker} options: {e}")
+                    else:
+                        raise
+            
             if not expirations:
                 raise ValueError(f"No options available for {stock.ticker}")
         except Exception as e:
@@ -302,8 +339,8 @@ class YahooFinanceScraper:
                     theta=greeks['theta'],
                     vega=greeks['vega'],
                     rho=greeks['rho'],
-                    volume=int(row.get('volume', 0)) if row.get('volume') else None,
-                    open_interest=int(row.get('openInterest', 0)) if row.get('openInterest') else None,
+                    volume=int(row.get('volume')) if row.get('volume') and not pd.isna(row.get('volume')) else None,
+                    open_interest=int(row.get('openInterest')) if row.get('openInterest') and not pd.isna(row.get('openInterest')) else None,
                     data_source='yahoo_finance',
                     scraper_run_id=self.run_id
                 )

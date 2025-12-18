@@ -12,7 +12,7 @@ import os
 # Database URL from environment variable
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://premiummeter:changeme@localhost:5432/premiummeter"
+    "postgresql://premiummeter:your_secure_password_here@127.0.0.1:5432/premiummeter"
 )
 
 # Create SQLAlchemy engine

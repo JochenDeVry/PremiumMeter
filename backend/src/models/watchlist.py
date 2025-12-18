@@ -1,7 +1,7 @@
 """
 Watchlist model - Tracks which stocks are actively monitored
 """
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum, Index, UniqueConstraint
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum, String, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -11,8 +11,8 @@ from src.database.connection import Base
 
 class MonitoringStatus(str, enum.Enum):
     """Monitoring status enumeration"""
-    ACTIVE = "active"
-    PAUSED = "paused"
+    active = "active"
+    paused = "paused"
 
 
 class Watchlist(Base):
@@ -29,21 +29,23 @@ class Watchlist(Base):
     # Foreign Key
     stock_id = Column(
         Integer,
-        ForeignKey('stocks.stock_id', ondelete='CASCADE'),
+        ForeignKey('stock.stock_id', ondelete='CASCADE'),
         nullable=False,
         unique=True  # Each stock can only appear once in watchlist
     )
     
+    # Timestamp
+    added_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
     # Monitoring Configuration
-    status = Column(
+    monitoring_status = Column(
         Enum(MonitoringStatus, name="monitoring_status"),
-        default=MonitoringStatus.ACTIVE,
+        default=MonitoringStatus.active,
         nullable=False
     )
     
-    # Timestamps
-    added_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    last_scraped_at = Column(DateTime(timezone=True))
+    # Additional fields
+    notes = Column(String)
     
     # Relationship
     stock = relationship("Stock", backref="watchlist_entry")
@@ -51,7 +53,7 @@ class Watchlist(Base):
     # Indexes
     __table_args__ = (
         Index('idx_watchlist_stock', 'stock_id'),
-        Index('idx_watchlist_status', 'status'),
+        Index('idx_watchlist_monitoring', 'monitoring_status'),
         UniqueConstraint('stock_id', name='uq_watchlist_stock'),
     )
     
@@ -59,7 +61,7 @@ class Watchlist(Base):
         return (
             f"<Watchlist("
             f"stock_id={self.stock_id}, "
-            f"status='{self.status.value}', "
+            f"monitoring_status='{self.monitoring_status.value}', "
             f"added_at='{self.added_at}'"
             f")>"
         )

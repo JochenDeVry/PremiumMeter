@@ -12,14 +12,14 @@ from src.database.connection import Base
 
 class OptionType(str, enum.Enum):
     """Option type enumeration"""
-    CALL = "call"
-    PUT = "put"
+    call = "call"
+    put = "put"
 
 
 class ContractStatus(str, enum.Enum):
     """Contract status enumeration"""
-    ACTIVE = "active"
-    EXPIRED = "expired"
+    active = "active"
+    expired = "expired"
 
 
 class HistoricalPremiumRecord(Base):
@@ -35,7 +35,7 @@ class HistoricalPremiumRecord(Base):
     record_id = Column(Integer, primary_key=True, autoincrement=True)
     
     # Foreign Key
-    stock_id = Column(Integer, ForeignKey('stocks.stock_id', ondelete='CASCADE'), nullable=False)
+    stock_id = Column(Integer, ForeignKey('stock.stock_id', ondelete='CASCADE'), nullable=False)
     
     # Options Contract Information
     option_type = Column(Enum(OptionType, name="option_type"), nullable=False)
@@ -49,22 +49,31 @@ class HistoricalPremiumRecord(Base):
     stock_price_at_collection = Column(Numeric(10, 2), nullable=False)
     
     # Greeks (calculated or from data source)
+    implied_volatility = Column(Numeric(6, 4))
     delta = Column(Numeric(6, 4))
     gamma = Column(Numeric(6, 4))
     theta = Column(Numeric(6, 4))
     vega = Column(Numeric(6, 4))
+    rho = Column(Numeric(6, 4))
+    
+    # Volume and Open Interest
+    volume = Column(Integer)
+    open_interest = Column(Integer)
     
     # Contract Metadata
     contract_status = Column(
         Enum(ContractStatus, name="contract_status"),
-        default=ContractStatus.ACTIVE,
+        default=ContractStatus.active,
         nullable=False
     )
     days_to_expiry = Column(Integer, nullable=False)
     
+    # Scraper Metadata
+    data_source = Column(String(50), default='yahoo_finance')
+    scraper_run_id = Column(String(50))
+    
     # Timestamps
     collection_timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationship
     stock = relationship("Stock", backref="premium_records")

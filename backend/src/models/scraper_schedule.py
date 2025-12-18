@@ -1,19 +1,21 @@
 """
 Scraper Schedule model - Configuration for automated scraping
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Time
+from sqlalchemy import Column, Integer, String, DateTime, Enum, Time, Numeric
 from sqlalchemy.sql import func
 import enum
+from datetime import datetime, time as dt_time
+import pytz
 
 from src.database.connection import Base
 
 
 class SchedulerStatus(str, enum.Enum):
     """Scheduler status enumeration"""
-    IDLE = "idle"
-    RUNNING = "running"
-    PAUSED = "paused"
-    ERROR = "error"
+    idle = "idle"
+    running = "running"
+    paused = "paused"
+    error = "error"
 
 
 class ScraperSchedule(Base):
@@ -26,7 +28,7 @@ class ScraperSchedule(Base):
     __tablename__ = "scraper_schedule"
 
     # Primary Key (single-row configuration table)
-    config_id = Column(Integer, primary_key=True, default=1)
+    schedule_id = Column(Integer, primary_key=True, autoincrement=True)
     
     # Polling Configuration
     polling_interval_minutes = Column(
@@ -56,49 +58,49 @@ class ScraperSchedule(Base):
         comment="Timezone for market hours (IANA timezone)"
     )
     
-    # Exclusion Rules
-    exclude_weekends = Column(
-        Boolean,
+    # Black-Scholes Configuration
+    risk_free_rate = Column(
+        Numeric(5, 4),
         nullable=False,
-        default=True,
-        comment="Skip polling on weekends"
-    )
-    exclude_holidays = Column(
-        Boolean,
-        nullable=False,
-        default=True,
-        comment="Skip polling on market holidays"
+        default=0.045,
+        comment="Risk-free rate for Greeks calculation (e.g., 0.045 = 4.5%)"
     )
     
     # Status
-    status = Column(
+    scheduler_status = Column(
         Enum(SchedulerStatus, name="scheduler_status"),
-        default=SchedulerStatus.IDLE,
+        default=SchedulerStatus.idle,
         nullable=False
     )
     
     # Execution Tracking
-    next_run_at = Column(DateTime(timezone=True))
-    last_run_at = Column(DateTime(timezone=True))
-    last_error_message = Column(String(500))
+    last_run_timestamp = Column(DateTime(timezone=True))
+    next_run_timestamp = Column(DateTime(timezone=True))
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     def __repr__(self):
         return (
             f"<ScraperSchedule("
             f"interval={self.polling_interval_minutes}min, "
             f"hours={self.market_hours_start}-{self.market_hours_end} {self.timezone}, "
-            f"status='{self.status.value}'"
+            f"status='{self.scheduler_status.value}'"
             f")>"
         )
     
-    @staticmethod
-    def ensure_single_row():
+    def is_market_hours(self) -> bool:
         """
-        Validation constraint: Only one configuration row allowed
-        Enforced at application level (can also use CHECK constraint in PostgreSQL)
+        Check if current time is within configured market hours.
+        
+        Returns:
+            True if current time is within market hours window
         """
-        return "config_id = 1"
+        # Get current time in configured timezone
+        tz = pytz.timezone(self.timezone)
+        now = datetime.now(tz)
+        current_time = now.time()
+        
+        # Compare against configured market hours
+        return self.market_hours_start <= current_time <= self.market_hours_end

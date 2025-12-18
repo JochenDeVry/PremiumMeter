@@ -11,9 +11,9 @@ from src.database.connection import Base
 
 class StockStatus(str, enum.Enum):
     """Stock status enumeration"""
-    ACTIVE = "active"
-    DELISTED = "delisted"
-    INACTIVE = "inactive"
+    active = "active"
+    delisted = "delisted"
+    inactive = "inactive"
 
 
 class Stock(Base):
@@ -22,7 +22,7 @@ class Stock(Base):
     
     Corresponds to spec.md Key Entities: Stock
     """
-    __tablename__ = "stocks"
+    __tablename__ = "stock"
 
     # Primary Key
     stock_id = Column(Integer, primary_key=True, autoincrement=True)
@@ -32,7 +32,7 @@ class Stock(Base):
     company_name = Column(String(255), nullable=False)
     status = Column(
         Enum(StockStatus, name="stock_status"),
-        default=StockStatus.ACTIVE,
+        default=StockStatus.active,
         nullable=False
     )
     

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000,http://localhost:5173"
     
     # Database Configuration
-    database_url: str = "postgresql://premiummeter:changeme@localhost:5432/premiummeter"
+    database_url: str = "postgresql://premiummeter:your_secure_password_here@127.0.0.1:5432/premiummeter"
     
     # Scraper Configuration (Intra-day Polling)
     polling_interval_minutes: int = 5  # Default: 5 minutes
