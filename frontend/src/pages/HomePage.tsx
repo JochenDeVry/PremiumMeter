@@ -1,47 +1,55 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import QueryForm from '../components/QueryForm';
+import PremiumResults from '../components/PremiumResults';
+import apiClient from '../services/api';
+import { PremiumQueryRequest, PremiumQueryResponse } from '../types/api';
 
 const HomePage: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [response, setResponse] = useState<PremiumQueryResponse | null>(null);
+
+  const handleQuery = async (request: PremiumQueryRequest) => {
+    setLoading(true);
+    setError(null);
+    setResponse(null);
+
+    try {
+      const result = await apiClient.queryPremium(request);
+      setResponse(result);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred');
+      }
+      console.error('Query error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="container">
       <h1>Options Premium Analyzer</h1>
       
       <section className="section">
-        <h2>Welcome</h2>
+        <h2>Query Historical Premium Data</h2>
         <p>
-          Query historical options premium data with advanced strike price matching
-          and powerful 3D visualizations.
+          Search historical options premium data with flexible strike price matching
+          (exact, percentage range, or nearest strikes) and duration filtering.
         </p>
       </section>
 
-      <section className="section">
-        <h2>Features</h2>
-        <ul>
-          <li>Query historical premium data with flexible strike matching (exact, range, nearest)</li>
-          <li>3D surface plots and 2D time-series visualizations</li>
-          <li>Manage stock watchlist with automated data collection</li>
-          <li>Configure scraping schedule with market hours and timezone support</li>
-        </ul>
-      </section>
-
-      <section className="section">
-        <h2>Quick Links</h2>
-        <div className="links">
-          <Link to="/query" className="button">Query Premium Data</Link>
-          <Link to="/visualize" className="button">Visualizations</Link>
-          <Link to="/watchlist" className="button">Manage Watchlist</Link>
-          <Link to="/admin" className="button">Admin Panel</Link>
+      <div className="query-section">
+        <div className="query-form-wrapper">
+          <QueryForm onSubmit={handleQuery} loading={loading} />
         </div>
-      </section>
 
-      <section className="section">
-        <h2>System Status</h2>
-        <p>
-          <strong>Polling Interval:</strong> 5 minutes (during market hours)<br />
-          <strong>Market Hours:</strong> 9:30 AM - 4:00 PM ET<br />
-          <strong>Stocks Monitored:</strong> 54 in watchlist
-        </p>
-      </section>
+        <div className="query-results-wrapper">
+          <PremiumResults response={response} loading={loading} error={error} />
+        </div>
+      </div>
     </div>
   );
 };

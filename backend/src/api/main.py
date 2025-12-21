@@ -90,12 +90,12 @@ async def root():
         "health": "/health"
     }
 
-# TODO: Import and include routers as endpoints are implemented
-# from src.api.endpoints import query, watchlist, scheduler, stocks
-# app.include_router(query.router, prefix="/api/query", tags=["Query"])
-# app.include_router(watchlist.router, prefix="/api/watchlist", tags=["Watchlist"])
-# app.include_router(scheduler.router, prefix="/api/scheduler", tags=["Scheduler"])
-# app.include_router(stocks.router, prefix="/api/stocks", tags=["Stocks"])
+# Import and include routers
+from src.api.endpoints import query, watchlist, scheduler
+
+app.include_router(query.router)
+app.include_router(watchlist.router)
+app.include_router(scheduler.router)
 
 # Startup event - initialize scheduler
 @app.on_event("startup")

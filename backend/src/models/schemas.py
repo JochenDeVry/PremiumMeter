@@ -50,8 +50,211 @@ class SchedulerStatus(str, Enum):
     paused = "paused"
     error = "error"
 
-# Placeholder schemas - will be populated with actual schemas in Phase 3+
-# These are imported by endpoints but defined when implementing each user story
+
+# ============================================================================
+# User Story 1: Query Premium Data Schemas
+# ============================================================================
+
+class PremiumQueryRequest(BaseSchema):
+    """
+    Request schema for querying historical premium data.
+    
+    Supports three strike matching modes:
+    1. exact: Match specific strike price
+    2. percentage_range: Match strikes within percentage range
+    3. nearest: Match N nearest strikes above/below target
+    """
+    ticker: str = Field(..., description="Stock ticker symbol", min_length=1, max_length=10)
+    option_type: OptionType = Field(..., description="Option type: call or put")
+    
+    # Strike matching configuration
+    strike_mode: StrikeModeType = Field(
+        default=StrikeModeType.exact,
+        description="How to match strike prices"
+    )
+    strike_price: Optional[Decimal] = Field(
+        None,
+        description="Target strike price (required for exact and percentage_range modes)",
+        gt=0
+    )
+    strike_range_percent: Optional[float] = Field(
+        None,
+        description="Percentage range for strike matching (percentage_range mode only)",
+        ge=0,
+        le=100
+    )
+    nearest_count_above: Optional[int] = Field(
+        None,
+        description="Number of strikes above current price (nearest mode only)",
+        ge=1,
+        le=50
+    )
+    nearest_count_below: Optional[int] = Field(
+        None,
+        description="Number of strikes below current price (nearest mode only)",
+        ge=1,
+        le=50
+    )
+    
+    # Duration matching
+    duration_days: Optional[int] = Field(
+        None,
+        description="Target days to expiration",
+        ge=0
+    )
+    duration_tolerance_days: Optional[int] = Field(
+        default=3,
+        description="Tolerance in days for duration matching",
+        ge=0
+    )
+    
+    # Time range
+    lookback_days: Optional[int] = Field(
+        default=30,
+        description="How many days back to query",
+        ge=1,
+        le=365
+    )
+    
+    @field_validator('strike_price')
+    @classmethod
+    def validate_strike_price(cls, v, info):
+        """Ensure strike_price is provided for exact and percentage_range modes"""
+        strike_mode = info.data.get('strike_mode')
+        if strike_mode in (StrikeModeType.exact, StrikeModeType.percentage_range) and v is None:
+            raise ValueError(f"strike_price is required for {strike_mode.value} mode")
+        return v
+    
+    @field_validator('strike_range_percent')
+    @classmethod
+    def validate_strike_range(cls, v, info):
+        """Ensure strike_range_percent is provided for percentage_range mode"""
+        strike_mode = info.data.get('strike_mode')
+        if strike_mode == StrikeModeType.percentage_range and v is None:
+            raise ValueError("strike_range_percent is required for percentage_range mode")
+        return v
+    
+    @field_validator('nearest_count_above')
+    @classmethod
+    def validate_nearest_counts(cls, v, info):
+        """Ensure at least one nearest count is provided for nearest mode"""
+        strike_mode = info.data.get('strike_mode')
+        nearest_below = info.data.get('nearest_count_below')
+        if strike_mode == StrikeModeType.nearest and v is None and nearest_below is None:
+            raise ValueError("At least one of nearest_count_above or nearest_count_below is required for nearest mode")
+        return v
+
+
+class PremiumStatistics(BaseSchema):
+    """Statistical summary for a specific strike price"""
+    strike_price: Decimal = Field(..., description="Strike price")
+    
+    # Premium statistics
+    min_premium: Decimal = Field(..., description="Minimum premium observed")
+    max_premium: Decimal = Field(..., description="Maximum premium observed")
+    avg_premium: Decimal = Field(..., description="Average premium")
+    median_premium: Optional[Decimal] = Field(None, description="Median premium")
+    std_premium: Optional[Decimal] = Field(None, description="Standard deviation of premium")
+    
+    # Greeks averages
+    avg_delta: Optional[Decimal] = Field(None, description="Average delta")
+    avg_gamma: Optional[Decimal] = Field(None, description="Average gamma")
+    avg_theta: Optional[Decimal] = Field(None, description="Average theta")
+    avg_vega: Optional[Decimal] = Field(None, description="Average vega")
+    
+    # Data quality metrics
+    data_points: int = Field(..., description="Number of data points in this statistic", ge=0)
+    first_seen: datetime = Field(..., description="Earliest collection timestamp")
+    last_seen: datetime = Field(..., description="Latest collection timestamp")
+
+
+class PremiumQueryResponse(BaseSchema):
+    """Response schema for premium query results"""
+    ticker: str = Field(..., description="Stock ticker queried")
+    option_type: str = Field(..., description="Option type queried")
+    query_timestamp: datetime = Field(default_factory=datetime.utcnow, description="When query was executed")
+    
+    # Query parameters echoed back
+    strike_mode: str = Field(..., description="Strike matching mode used")
+    duration_days: Optional[int] = Field(None, description="Target duration queried")
+    lookback_days: int = Field(..., description="Lookback period used")
+    
+    # Results
+    results: List[PremiumStatistics] = Field(
+        default_factory=list,
+        description="Premium statistics for each matching strike"
+    )
+    total_strikes: int = Field(..., description="Number of strikes in results", ge=0)
+    total_data_points: int = Field(..., description="Total data points across all strikes", ge=0)
+
+
+# ============================================================================
+# Watchlist Schemas
+# ============================================================================
+
+class WatchlistStock(BaseSchema):
+    """Stock entry in the watchlist"""
+    stock_id: int = Field(..., description="Database ID of the stock")
+    ticker: str = Field(..., description="Stock ticker symbol")
+    company_name: str = Field(..., description="Company name")
+    status: MonitoringStatus = Field(..., description="Monitoring status")
+    added_at: str = Field(..., description="When stock was added to watchlist")
+    last_scraped: Optional[str] = Field(None, description="Last successful scrape timestamp")
+    data_points_count: int = Field(..., description="Number of historical data points", ge=0)
+
+
+class WatchlistResponse(BaseSchema):
+    """Response containing the watchlist"""
+    watchlist: List[WatchlistStock] = Field(..., description="List of stocks in watchlist")
+    total_count: int = Field(..., description="Total number of stocks", ge=0)
+
+
+class AddStockRequest(BaseSchema):
+    """Request to add a stock to the watchlist"""
+    ticker: str = Field(..., description="Stock ticker symbol", min_length=1, max_length=10)
+
+
+class RemoveStockRequest(BaseSchema):
+    """Request to remove a stock from the watchlist"""
+    ticker: str = Field(..., description="Stock ticker symbol", min_length=1, max_length=10)
+
+
+# ============================================================================
+# Scheduler Schemas
+# ============================================================================
+
+class SchedulerConfig(BaseSchema):
+    """Scheduler configuration"""
+    polling_interval_minutes: int = Field(..., description="Polling interval in minutes", ge=1)
+    market_hours_start: str = Field(..., description="Market open time (HH:MM format)")
+    market_hours_end: str = Field(..., description="Market close time (HH:MM format)")
+    timezone: str = Field(..., description="Timezone for market hours")
+    exclude_weekends: bool = Field(..., description="Whether to exclude weekends")
+    exclude_holidays: bool = Field(..., description="Whether to exclude holidays")
+    status: MonitoringStatus = Field(..., description="Scheduler status")
+    next_run: Optional[str] = Field(None, description="Next scheduled run time")
+    last_run: Optional[str] = Field(None, description="Last run time")
+
+
+class SchedulerConfigRequest(BaseSchema):
+    """Request to update scheduler configuration"""
+    polling_interval_minutes: Optional[int] = Field(None, description="Polling interval in minutes", ge=1)
+    market_hours_start: Optional[str] = Field(None, description="Market open time (HH:MM format)")
+    market_hours_end: Optional[str] = Field(None, description="Market close time (HH:MM format)")
+    timezone: Optional[str] = Field(None, description="Timezone for market hours")
+    exclude_weekends: Optional[bool] = Field(None, description="Whether to exclude weekends")
+    exclude_holidays: Optional[bool] = Field(None, description="Whether to exclude holidays")
+
+
+# ============================================================================
+# Common Response Schemas
+# ============================================================================
+
+class SuccessResponse(BaseSchema):
+    """Generic success response"""
+    success: bool = Field(..., description="Whether operation was successful")
+    message: str = Field(..., description="Human-readable message")
+
 
 __all__ = [
     "BaseSchema",
@@ -59,5 +262,15 @@ __all__ = [
     "StrikeModeType",
     "ContractStatus",
     "MonitoringStatus",
-    "SchedulerStatus"
+    "SchedulerStatus",
+    "PremiumQueryRequest",
+    "PremiumStatistics",
+    "PremiumQueryResponse",
+    "WatchlistStock",
+    "WatchlistResponse",
+    "AddStockRequest",
+    "RemoveStockRequest",
+    "SchedulerConfig",
+    "SchedulerConfigRequest",
+    "SuccessResponse"
 ]

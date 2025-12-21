@@ -1,0 +1,221 @@
+import React, { useState } from 'react';
+import { OptionType, StrikeMode, PremiumQueryRequest } from '../types/api';
+
+interface QueryFormProps {
+  onSubmit: (request: PremiumQueryRequest) => void;
+  loading?: boolean;
+}
+
+const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
+  const [ticker, setTicker] = useState<string>('AAPL');
+  const [optionType, setOptionType] = useState<OptionType>(OptionType.CALL);
+  const [strikeMode, setStrikeMode] = useState<StrikeMode>(StrikeMode.EXACT);
+  const [strikePrice, setStrikePrice] = useState<string>('270');
+  const [strikeRangePercent, setStrikeRangePercent] = useState<string>('5');
+  const [nearestCountAbove, setNearestCountAbove] = useState<string>('3');
+  const [nearestCountBelow, setNearestCountBelow] = useState<string>('3');
+  const [durationDays, setDurationDays] = useState<string>('30');
+  const [durationToleranceDays, setDurationToleranceDays] = useState<string>('3');
+  const [lookbackDays, setLookbackDays] = useState<string>('7');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const request: PremiumQueryRequest = {
+      ticker: ticker.toUpperCase(),
+      option_type: optionType,
+      strike_mode: strikeMode,
+      strike_price: parseFloat(strikePrice),
+      duration_days: parseInt(durationDays),
+      duration_tolerance_days: parseInt(durationToleranceDays),
+      lookback_days: parseInt(lookbackDays),
+    };
+
+    // Add mode-specific parameters
+    if (strikeMode === StrikeMode.PERCENTAGE_RANGE) {
+      request.strike_range_percent = parseFloat(strikeRangePercent);
+    } else if (strikeMode === StrikeMode.NEAREST) {
+      request.nearest_count_above = parseInt(nearestCountAbove);
+      request.nearest_count_below = parseInt(nearestCountBelow);
+    }
+
+    onSubmit(request);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="query-form">
+      <div className="form-section">
+        <h3>Stock & Option Type</h3>
+        
+        <div className="form-group">
+          <label htmlFor="ticker">Ticker Symbol</label>
+          <input
+            type="text"
+            id="ticker"
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value)}
+            placeholder="AAPL"
+            required
+            disabled={loading}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="optionType">Option Type</label>
+          <select
+            id="optionType"
+            value={optionType}
+            onChange={(e) => setOptionType(e.target.value as OptionType)}
+            disabled={loading}
+          >
+            <option value={OptionType.CALL}>Call</option>
+            <option value={OptionType.PUT}>Put</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="form-section">
+        <h3>Strike Price Matching</h3>
+        
+        <div className="form-group">
+          <label htmlFor="strikeMode">Strike Mode</label>
+          <select
+            id="strikeMode"
+            value={strikeMode}
+            onChange={(e) => setStrikeMode(e.target.value as StrikeMode)}
+            disabled={loading}
+          >
+            <option value={StrikeMode.EXACT}>Exact Strike</option>
+            <option value={StrikeMode.PERCENTAGE_RANGE}>Percentage Range</option>
+            <option value={StrikeMode.NEAREST}>Nearest Strikes</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="strikePrice">Strike Price ($)</label>
+          <input
+            type="number"
+            id="strikePrice"
+            value={strikePrice}
+            onChange={(e) => setStrikePrice(e.target.value)}
+            step="0.01"
+            min="0"
+            required
+            disabled={loading}
+          />
+          <small className="form-help">
+            {strikeMode === StrikeMode.EXACT && 'Exact target strike price'}
+            {strikeMode === StrikeMode.PERCENTAGE_RANGE && 'Center price for range calculation'}
+            {strikeMode === StrikeMode.NEAREST && 'Reference price (usually current stock price)'}
+          </small>
+        </div>
+
+        {strikeMode === StrikeMode.PERCENTAGE_RANGE && (
+          <div className="form-group">
+            <label htmlFor="strikeRangePercent">Range (%)</label>
+            <input
+              type="number"
+              id="strikeRangePercent"
+              value={strikeRangePercent}
+              onChange={(e) => setStrikeRangePercent(e.target.value)}
+              step="0.1"
+              min="0"
+              max="100"
+              required
+              disabled={loading}
+            />
+            <small className="form-help">
+              ±{strikeRangePercent}% around ${strikePrice} = ${(parseFloat(strikePrice) * (1 - parseFloat(strikeRangePercent) / 100)).toFixed(2)} - ${(parseFloat(strikePrice) * (1 + parseFloat(strikeRangePercent) / 100)).toFixed(2)}
+            </small>
+          </div>
+        )}
+
+        {strikeMode === StrikeMode.NEAREST && (
+          <>
+            <div className="form-group">
+              <label htmlFor="nearestCountAbove">Strikes Above</label>
+              <input
+                type="number"
+                id="nearestCountAbove"
+                value={nearestCountAbove}
+                onChange={(e) => setNearestCountAbove(e.target.value)}
+                min="0"
+                max="10"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="nearestCountBelow">Strikes Below</label>
+              <input
+                type="number"
+                id="nearestCountBelow"
+                value={nearestCountBelow}
+                onChange={(e) => setNearestCountBelow(e.target.value)}
+                min="0"
+                max="10"
+                required
+                disabled={loading}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="form-section">
+        <h3>Duration & Time Window</h3>
+        
+        <div className="form-group">
+          <label htmlFor="durationDays">Target Duration (days)</label>
+          <input
+            type="number"
+            id="durationDays"
+            value={durationDays}
+            onChange={(e) => setDurationDays(e.target.value)}
+            min="1"
+            required
+            disabled={loading}
+          />
+          <small className="form-help">Days to expiration (e.g., 30 for ~1 month)</small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="durationToleranceDays">Duration Tolerance (days)</label>
+          <input
+            type="number"
+            id="durationToleranceDays"
+            value={durationToleranceDays}
+            onChange={(e) => setDurationToleranceDays(e.target.value)}
+            min="0"
+            required
+            disabled={loading}
+          />
+          <small className="form-help">
+            Match durations within ±{durationToleranceDays} days ({parseInt(durationDays) - parseInt(durationToleranceDays)}-{parseInt(durationDays) + parseInt(durationToleranceDays)} days)
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="lookbackDays">Lookback Period (days)</label>
+          <input
+            type="number"
+            id="lookbackDays"
+            value={lookbackDays}
+            onChange={(e) => setLookbackDays(e.target.value)}
+            min="1"
+            required
+            disabled={loading}
+          />
+          <small className="form-help">How far back in history to search</small>
+        </div>
+      </div>
+
+      <button type="submit" className="submit-button" disabled={loading}>
+        {loading ? 'Querying...' : 'Query Premium Data'}
+      </button>
+    </form>
+  );
+};
+
+export default QueryForm;

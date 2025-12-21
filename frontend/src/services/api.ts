@@ -75,7 +75,7 @@ class APIClient {
 
   async queryPremium(request: PremiumQueryRequest): Promise<PremiumQueryResponse> {
     const response = await this.client.post<PremiumQueryResponse>(
-      '/query/premium',
+      '/api/query/premium',
       request
     );
     return response.data;
@@ -83,7 +83,7 @@ class APIClient {
 
   async getChartData(request: ChartDataRequest): Promise<ChartDataResponse> {
     const response = await this.client.post<ChartDataResponse>(
-      '/query/chart-data',
+      '/api/query/chart-data',
       request
     );
     return response.data;
@@ -94,20 +94,20 @@ class APIClient {
   // ==========================================================================
 
   async getWatchlist(): Promise<WatchlistResponse> {
-    const response = await this.client.get<WatchlistResponse>('/watchlist');
+    const response = await this.client.get<WatchlistResponse>('/api/watchlist');
     return response.data;
   }
 
   async addStockToWatchlist(request: AddStockRequest): Promise<SuccessResponse> {
     const response = await this.client.post<SuccessResponse>(
-      '/watchlist/add',
+      '/api/watchlist/add',
       request
     );
     return response.data;
   }
 
   async removeStockFromWatchlist(request: RemoveStockRequest): Promise<SuccessResponse> {
-    const response = await this.client.delete<SuccessResponse>('/watchlist/remove', {
+    const response = await this.client.delete<SuccessResponse>('/api/watchlist/remove', {
       data: request,
     });
     return response.data;
@@ -118,7 +118,7 @@ class APIClient {
   // ==========================================================================
 
   async getSchedulerConfig(): Promise<SchedulerConfig> {
-    const response = await this.client.get<SchedulerConfig>('/scheduler/config');
+    const response = await this.client.get<SchedulerConfig>('/api/scheduler/config');
     return response.data;
   }
 
@@ -126,19 +126,19 @@ class APIClient {
     request: SchedulerConfigRequest
   ): Promise<SchedulerConfig> {
     const response = await this.client.put<SchedulerConfig>(
-      '/scheduler/config',
+      '/api/scheduler/config',
       request
     );
     return response.data;
   }
 
   async pauseScheduler(): Promise<SuccessResponse> {
-    const response = await this.client.post<SuccessResponse>('/scheduler/pause');
+    const response = await this.client.post<SuccessResponse>('/api/scheduler/pause');
     return response.data;
   }
 
   async resumeScheduler(): Promise<SuccessResponse> {
-    const response = await this.client.post<SuccessResponse>('/scheduler/resume');
+    const response = await this.client.post<SuccessResponse>('/api/scheduler/resume');
     return response.data;
   }
 
