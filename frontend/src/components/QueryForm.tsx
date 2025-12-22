@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { OptionType, StrikeMode, PremiumQueryRequest } from '../types/api';
+import apiClient from '../services/api';
 
 interface QueryFormProps {
   onSubmit: (request: PremiumQueryRequest) => void;
   loading?: boolean;
 }
 
+interface Stock {
+  ticker: string;
+  company_name: string;
+}
+
 const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [ticker, setTicker] = useState<string>('AAPL');
   const [optionType, setOptionType] = useState<OptionType>(OptionType.CALL);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [strikeMode, setStrikeMode] = useState<StrikeMode>(StrikeMode.EXACT);
   const [strikePrice, setStrikePrice] = useState<string>('270');
   const [strikeRangePercent, setStrikeRangePercent] = useState<string>('5');
@@ -17,6 +28,67 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   const [durationDays, setDurationDays] = useState<string>('30');
   const [durationToleranceDays, setDurationToleranceDays] = useState<string>('3');
   const [lookbackDays, setLookbackDays] = useState<string>('7');
+
+  // Load stocks on component mount
+  useEffect(() => {
+    const loadStocks = async () => {
+      try {
+        const stockList = await apiClient.listAllStocks();
+        setStocks(stockList);
+        setFilteredStocks(stockList);
+      } catch (error) {
+        console.error('Failed to load stocks:', error);
+      }
+    };
+    loadStocks();
+  }, []);
+
+  // Filter stocks based on search term
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredStocks(stocks);
+    } else {
+      const term = searchTerm.toLowerCase();
+      const filtered = stocks.filter(
+        stock => 
+          stock.ticker.toLowerCase().includes(term) || 
+          stock.company_name.toLowerCase().includes(term)
+      );
+      setFilteredStocks(filtered);
+    }
+  }, [searchTerm, stocks]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleStockSelect = (selectedTicker: string) => {
+    setTicker(selectedTicker);
+    setSearchTerm(selectedTicker);
+    setShowDropdown(false);
+  };
+
+  const handleInputFocus = () => {
+    setSearchTerm('');
+    setShowDropdown(true);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    setTicker(value.toUpperCase());
+    setShowDropdown(true);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,28 +121,58 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
         
         <div className="form-group">
           <label htmlFor="ticker">Ticker Symbol</label>
-          <input
-            type="text"
-            id="ticker"
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-            placeholder="AAPL"
-            required
-            disabled={loading}
-          />
+          <div className="stock-search-container" ref={dropdownRef}>
+            <input
+              type="text"
+              id="ticker"
+              value={searchTerm || ticker}
+              onChange={handleSearchChange}
+              onFocus={handleInputFocus}
+              placeholder="Search stocks..."
+              required
+              disabled={loading}
+              autoComplete="off"
+              className="stock-search-input"
+            />
+            <span className="dropdown-arrow">▼</span>
+            {showDropdown && filteredStocks.length > 0 && (
+              <div className="stock-dropdown">
+                {filteredStocks.slice(0, 10).map((stock) => (
+                  <div
+                    key={stock.ticker}
+                    className="stock-dropdown-item"
+                    onClick={() => handleStockSelect(stock.ticker)}
+                  >
+                    <span className="stock-ticker">{stock.ticker}</span>
+                    <span className="stock-name">{stock.company_name}</span>
+                  </div>
+                ))}
+                {filteredStocks.length > 10 && (
+                  <div className="stock-dropdown-item disabled">
+                    <span className="stock-name">+ {filteredStocks.length - 10} more...</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <small className="form-help">Selected: {ticker}</small>
         </div>
 
         <div className="form-group">
           <label htmlFor="optionType">Option Type</label>
-          <select
-            id="optionType"
-            value={optionType}
-            onChange={(e) => setOptionType(e.target.value as OptionType)}
-            disabled={loading}
-          >
-            <option value={OptionType.CALL}>Call</option>
-            <option value={OptionType.PUT}>Put</option>
-          </select>
+          <div className="select-wrapper">
+            <select
+              id="optionType"
+              value={optionType}
+              onChange={(e) => setOptionType(e.target.value as OptionType)}
+              disabled={loading}
+              className="styled-select"
+            >
+              <option value={OptionType.CALL}>Call</option>
+              <option value={OptionType.PUT}>Put</option>
+            </select>
+            <span className="dropdown-arrow">▼</span>
+          </div>
         </div>
       </div>
 
@@ -79,16 +181,20 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
         
         <div className="form-group">
           <label htmlFor="strikeMode">Strike Mode</label>
-          <select
-            id="strikeMode"
-            value={strikeMode}
-            onChange={(e) => setStrikeMode(e.target.value as StrikeMode)}
-            disabled={loading}
-          >
-            <option value={StrikeMode.EXACT}>Exact Strike</option>
-            <option value={StrikeMode.PERCENTAGE_RANGE}>Percentage Range</option>
-            <option value={StrikeMode.NEAREST}>Nearest Strikes</option>
-          </select>
+          <div className="select-wrapper">
+            <select
+              id="strikeMode"
+              value={strikeMode}
+              onChange={(e) => setStrikeMode(e.target.value as StrikeMode)}
+              disabled={loading}
+              className="styled-select"
+            >
+              <option value={StrikeMode.EXACT}>Exact Strike</option>
+              <option value={StrikeMode.PERCENTAGE_RANGE}>Percentage Range</option>
+              <option value={StrikeMode.NEAREST}>Nearest Strikes</option>
+            </select>
+            <span className="dropdown-arrow">▼</span>
+          </div>
         </div>
 
         <div className="form-group">

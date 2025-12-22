@@ -146,6 +146,11 @@ class APIClient {
   // Stock Endpoints
   // ==========================================================================
 
+  async listAllStocks(): Promise<Array<{ticker: string, company_name: string}>> {
+    const response = await this.client.get<Array<{ticker: string, company_name: string}>>('/api/stocks');
+    return response.data;
+  }
+
   async listStocks(
     status?: string,
     limit: number = 100,
