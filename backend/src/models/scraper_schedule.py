@@ -66,6 +66,20 @@ class ScraperSchedule(Base):
         comment="Risk-free rate for Greeks calculation (e.g., 0.045 = 4.5%)"
     )
     
+    # Rate Limiting Configuration
+    stock_delay_seconds = Column(
+        Integer,
+        nullable=False,
+        default=10,
+        comment="Delay between scraping stocks (seconds) - helps avoid rate limiting"
+    )
+    max_expirations = Column(
+        Integer,
+        nullable=False,
+        default=8,
+        comment="Maximum number of option expirations to fetch per stock (nearest dates)"
+    )
+    
     # Status
     scheduler_status = Column(
         Enum(SchedulerStatus, name="scheduler_status"),

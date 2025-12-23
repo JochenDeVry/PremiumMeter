@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://premiummeter:your_secure_password_here@127.0.0.1:5432/premiummeter"
     
     # Scraper Configuration (Intra-day Polling)
-    polling_interval_minutes: int = 5  # Default: 5 minutes
+    polling_interval_minutes: int = 120  # Default: 2 hours (to stay under 360 requests/hour limit)
     market_hours_start: str = "09:30:00"  # Market open time
     market_hours_end: str = "16:00:00"    # Market close time
     default_timezone: str = "America/New_York"

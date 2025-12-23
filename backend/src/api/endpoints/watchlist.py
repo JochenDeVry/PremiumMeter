@@ -89,7 +89,7 @@ async def add_stock_to_watchlist(
         # Create new stock entry
         new_stock = Stock(
             ticker=ticker,
-            company_name=ticker  # Will be updated by scraper
+            company_name=request.company_name or ticker  # Use provided name or ticker
         )
         db.add(new_stock)
         db.commit()

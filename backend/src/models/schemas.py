@@ -212,6 +212,7 @@ class WatchlistResponse(BaseSchema):
 class AddStockRequest(BaseSchema):
     """Request to add a stock to the watchlist"""
     ticker: str = Field(..., description="Stock ticker symbol", min_length=1, max_length=10)
+    company_name: Optional[str] = Field(None, description="Company name (optional)")
 
 
 class RemoveStockRequest(BaseSchema):
@@ -234,16 +235,37 @@ class SchedulerConfig(BaseSchema):
     status: MonitoringStatus = Field(..., description="Scheduler status")
     next_run: Optional[str] = Field(None, description="Next scheduled run time")
     last_run: Optional[str] = Field(None, description="Last run time")
+    stock_delay_seconds: int = Field(..., description="Delay between scraping stocks (seconds)", ge=0)
+    max_expirations: int = Field(..., description="Maximum number of option expirations per stock", ge=1)
 
 
 class SchedulerConfigRequest(BaseSchema):
     """Request to update scheduler configuration"""
-    polling_interval_minutes: Optional[int] = Field(None, description="Polling interval in minutes", ge=1)
+    polling_interval_minutes: Optional[int] = Field(None, description="Polling interval in minutes", ge=1, le=1440)
     market_hours_start: Optional[str] = Field(None, description="Market open time (HH:MM format)")
     market_hours_end: Optional[str] = Field(None, description="Market close time (HH:MM format)")
     timezone: Optional[str] = Field(None, description="Timezone for market hours")
     exclude_weekends: Optional[bool] = Field(None, description="Whether to exclude weekends")
     exclude_holidays: Optional[bool] = Field(None, description="Whether to exclude holidays")
+    stock_delay_seconds: Optional[int] = Field(None, description="Delay between scraping stocks (seconds)", ge=0, le=300)
+    max_expirations: Optional[int] = Field(None, description="Maximum number of option expirations per stock", ge=1, le=100)
+
+
+class RateLimitCalculation(BaseSchema):
+    """Rate limit calculation based on current configuration"""
+    watchlist_size: int = Field(..., description="Number of active stocks in watchlist")
+    requests_per_stock: int = Field(..., description="Estimated API requests per stock")
+    requests_per_cycle: int = Field(..., description="Total requests per scrape cycle")
+    cycle_duration_minutes: float = Field(..., description="Estimated cycle duration in minutes")
+    requests_per_minute: float = Field(..., description="Average requests per minute")
+    cycles_per_hour: float = Field(..., description="Number of scrape cycles per hour")
+    requests_per_hour: float = Field(..., description="Estimated requests per hour")
+    cycles_per_day: int = Field(..., description="Number of scrape cycles per day")
+    requests_per_day: int = Field(..., description="Estimated requests per day")
+    within_minute_limit: bool = Field(..., description="Whether within 60/min limit")
+    within_hour_limit: bool = Field(..., description="Whether within 360/hour limit")
+    within_day_limit: bool = Field(..., description="Whether within 8000/day limit")
+    warnings: List[str] = Field(default_factory=list, description="Rate limit warnings")
 
 
 # ============================================================================

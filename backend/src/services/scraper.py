@@ -38,6 +38,8 @@ class ScraperMetrics:
         self.failed_stocks: int = 0
         self.total_contracts: int = 0
         self.stock_errors: List[Dict[str, str]] = []  # [{ticker, error}]
+        self.total_api_requests: int = 0  # Track Yahoo Finance API calls
+        self.rate_limit_warnings: List[str] = []  # Rate limit violation warnings
     
     def duration_seconds(self) -> Optional[float]:
         """Calculate scraper run duration in seconds"""
@@ -56,6 +58,9 @@ class ScraperMetrics:
             'failed_stocks': self.failed_stocks,
             'total_contracts': self.total_contracts,
             'contracts_per_stock': round(self.total_contracts / self.successful_stocks, 2) if self.successful_stocks > 0 else 0,
+            'total_api_requests': self.total_api_requests,
+            'requests_per_stock': round(self.total_api_requests / self.successful_stocks, 2) if self.successful_stocks > 0 else 0,
+            'rate_limit_warnings': self.rate_limit_warnings,
             'errors': self.stock_errors
         }
 
@@ -97,12 +102,18 @@ class YahooFinanceScraper:
         
         logger.info(f"Found {metrics.total_stocks} active stocks in watchlist")
         
+        # Load scraper configuration from database
+        from ..models.scraper_schedule import ScraperSchedule
+        config = self.db.query(ScraperSchedule).first()
+        stock_delay = config.stock_delay_seconds if config else 10
+        
         for stock in active_stocks:
             try:
                 # Add delay between stocks to avoid rate limiting
-                time.sleep(1)
+                time.sleep(stock_delay)
                 
-                contracts_count = self._scrape_stock(stock)
+                contracts_count, api_calls = self._scrape_stock(stock)
+                metrics.total_api_requests += api_calls
                 metrics.successful_stocks += 1
                 metrics.total_contracts += contracts_count
                 logger.info(f"✓ {stock.ticker}: {contracts_count} contracts scraped")
@@ -117,6 +128,20 @@ class YahooFinanceScraper:
                 continue
         
         metrics.end_time = datetime.now()
+        
+        # Check rate limit compliance (Yahoo: 60/min, 360/hour, 8000/day)
+        duration_minutes = metrics.duration_seconds() / 60 if metrics.duration_seconds() else 1
+        requests_per_minute = metrics.total_api_requests / duration_minutes
+        
+        if requests_per_minute > 60:
+            warning = f"Exceeded 60 requests/min limit: {requests_per_minute:.1f}/min"
+            metrics.rate_limit_warnings.append(warning)
+            logger.warning(warning)
+        
+        if metrics.total_api_requests > 360:
+            warning = f"Scrape cycle used {metrics.total_api_requests} requests (limit: 360/hour)"
+            metrics.rate_limit_warnings.append(warning)
+            logger.warning(warning)
         
         logger.info(f"Scraper run {self.run_id} completed: {metrics.to_dict()}")
         
@@ -137,7 +162,7 @@ class YahooFinanceScraper:
             .all()
         )
     
-    def _scrape_stock(self, stock: Stock) -> int:
+    def _scrape_stock(self, stock: Stock) -> Tuple[int, int]:
         """
         Scrape options chain for a single stock.
         
@@ -201,11 +226,21 @@ class YahooFinanceScraper:
         except Exception as e:
             raise ValueError(f"Failed to fetch options expirations: {e}")
         
+        # Load max_expirations setting from database
+        from ..models.scraper_schedule import ScraperSchedule
+        config = self.db.query(ScraperSchedule).first()
+        max_exp = config.max_expirations if config else 8
+        
+        # Limit to max expirations (nearest dates) to reduce API calls
+        expirations = expirations[:max_exp]
+        
         collection_timestamp = datetime.now()
         contracts_count = 0
+        api_calls = 2  # 1 for price, 1 for expirations list
         
         # Iterate through each expiration date
         for expiration_str in expirations:
+            api_calls += 1  # 1 API call per option_chain() request
             try:
                 # Get options chain for this expiration
                 options_chain = ticker_obj.option_chain(expiration_str)
@@ -251,7 +286,8 @@ class YahooFinanceScraper:
         # Commit all contracts for this stock
         self.db.commit()
         
-        return contracts_count
+        logger.info(f"Scraped {contracts_count} contracts for {stock.ticker} ({api_calls} API calls)")
+        return contracts_count, api_calls
     
     def _process_options_dataframe(
         self,

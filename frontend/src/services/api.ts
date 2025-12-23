@@ -10,6 +10,7 @@ import type {
   RemoveStockRequest,
   SchedulerConfig,
   SchedulerConfigRequest,
+  RateLimitCalculation,
   StockListResponse,
   StockDetailsResponse,
   ErrorResponse,
@@ -142,12 +143,31 @@ class APIClient {
     return response.data;
   }
 
+  async getRateLimitCalculation(
+    polling_interval_minutes?: number,
+    stock_delay_seconds?: number,
+    max_expirations?: number
+  ): Promise<RateLimitCalculation> {
+    const params: any = {};
+    if (polling_interval_minutes !== undefined) params.polling_interval_minutes = polling_interval_minutes;
+    if (stock_delay_seconds !== undefined) params.stock_delay_seconds = stock_delay_seconds;
+    if (max_expirations !== undefined) params.max_expirations = max_expirations;
+    
+    const response = await this.client.get<RateLimitCalculation>('/api/scheduler/rate-calculation', { params });
+    return response.data;
+  }
+
   // ==========================================================================
   // Stock Endpoints
   // ==========================================================================
 
   async listAllStocks(): Promise<Array<{ticker: string, company_name: string}>> {
     const response = await this.client.get<Array<{ticker: string, company_name: string}>>('/api/stocks');
+    return response.data;
+  }
+
+  async getUSStocks(): Promise<{stocks: Array<{ticker: string, company_name: string}>, total_count: number}> {
+    const response = await this.client.get<{stocks: Array<{ticker: string, company_name: string}>, total_count: number}>('/api/us-stocks');
     return response.data;
   }
 

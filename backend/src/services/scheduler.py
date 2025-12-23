@@ -73,6 +73,14 @@ class SchedulerService:
             logger.error("No ScraperSchedule configuration found in database")
             return
         
+        # Start scheduler paused by default to prevent immediate rate limiting
+        # User must manually start via API after adjusting watchlist size
+        if config.scheduler_status != SchedulerStatus.paused:
+            logger.warning("Setting scheduler to PAUSED on startup to prevent rate limiting")
+            logger.warning("Rate limits: 60/min, 360/hour, 8000/day. Start manually after configuration.")
+            config.scheduler_status = SchedulerStatus.paused
+            db.commit()
+        
         # Schedule main scraper job
         self._schedule_scraper_job(config)
         
@@ -164,8 +172,8 @@ class SchedulerService:
         
         # Update fields
         if polling_interval_minutes is not None:
-            if not 1 <= polling_interval_minutes <= 60:
-                raise ValueError("Polling interval must be between 1 and 60 minutes")
+            if not 1 <= polling_interval_minutes <= 1440:  # Up to 24 hours (1440 minutes)
+                raise ValueError("Polling interval must be between 1 and 1440 minutes (24 hours)")
             config.polling_interval_minutes = polling_interval_minutes
         
         if market_hours_start is not None:

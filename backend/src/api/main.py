@@ -91,12 +91,13 @@ async def root():
     }
 
 # Import and include routers
-from src.api.endpoints import query, watchlist, scheduler, stocks
+from src.api.endpoints import query, watchlist, scheduler, stocks, us_stocks
 
 app.include_router(query.router)
 app.include_router(watchlist.router)
 app.include_router(scheduler.router)
 app.include_router(stocks.router)
+app.include_router(us_stocks.router)
 
 # Startup event - initialize scheduler
 @app.on_event("startup")

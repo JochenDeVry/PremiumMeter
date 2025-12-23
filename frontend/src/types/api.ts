@@ -124,6 +124,7 @@ export interface WatchlistResponse {
 
 export interface AddStockRequest {
   ticker: string;
+  company_name?: string;
 }
 
 export interface RemoveStockRequest {
@@ -144,6 +145,8 @@ export interface SchedulerConfig {
   status: MonitoringStatus;
   next_run?: string;
   last_run?: string;
+  stock_delay_seconds: number;
+  max_expirations: number;
 }
 
 export interface SchedulerConfigRequest {
@@ -153,6 +156,24 @@ export interface SchedulerConfigRequest {
   timezone?: string;
   exclude_weekends?: boolean;
   exclude_holidays?: boolean;
+  stock_delay_seconds?: number;
+  max_expirations?: number;
+}
+
+export interface RateLimitCalculation {
+  watchlist_size: number;
+  requests_per_stock: number;
+  requests_per_cycle: number;
+  cycle_duration_minutes: number;
+  requests_per_minute: number;
+  cycles_per_hour: number;
+  requests_per_hour: number;
+  cycles_per_day: number;
+  requests_per_day: number;
+  within_minute_limit: boolean;
+  within_hour_limit: boolean;
+  within_day_limit: boolean;
+  warnings: string[];
 }
 
 // ============================================================================
