@@ -72,13 +72,52 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def health_check():
     """
     Health check endpoint for monitoring.
-    Returns 200 OK if service is running.
+    Returns 200 OK if service is running and database is accessible.
+    Returns 503 if database is unavailable.
     """
-    return {
+    from src.database.connection import get_db
+    from sqlalchemy import text
+    
+    health_status = {
         "status": "healthy",
         "service": "Options Premium Analyzer API",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "checks": {
+            "database": "unknown",
+            "scheduler": "unknown"
+        }
     }
+    
+    # Check database connectivity
+    try:
+        db = next(get_db())
+        db.execute(text("SELECT 1"))
+        db.close()
+        health_status["checks"]["database"] = "healthy"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        health_status["checks"]["database"] = "unhealthy"
+        health_status["status"] = "degraded"
+    
+    # Check scheduler status
+    try:
+        from src.services.scheduler import get_scheduler_service
+        scheduler = get_scheduler_service()
+        if scheduler.scheduler and scheduler.scheduler.running:
+            health_status["checks"]["scheduler"] = "running"
+        else:
+            health_status["checks"]["scheduler"] = "stopped"
+    except Exception as e:
+        logger.error(f"Scheduler health check failed: {e}")
+        health_status["checks"]["scheduler"] = "unknown"
+    
+    # Return 503 if database is unhealthy
+    status_code = 200 if health_status["checks"]["database"] == "healthy" else 503
+    
+    return JSONResponse(
+        status_code=status_code,
+        content=health_status
+    )
 
 # Root endpoint
 @app.get("/", tags=["Root"])

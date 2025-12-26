@@ -13,6 +13,7 @@ from ...database.connection import get_db
 from ...models.stock import Stock
 from ...models.historical_premium_record import HistoricalPremiumRecord
 from ...models.schemas import WatchlistResponse, WatchlistStock, AddStockRequest, RemoveStockRequest, SuccessResponse, MonitoringStatus
+from ...utils.security import validate_ticker, sanitize_string
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,8 @@ async def add_stock_to_watchlist(
     Add a stock ticker to the watchlist for monitoring.
     """
     try:
+        # Validate and sanitize inputs
+        validate_ticker(request.ticker)
         ticker = request.ticker.upper()
         
         # Check if stock already exists
@@ -87,9 +90,10 @@ async def add_stock_to_watchlist(
             )
         
         # Create new stock entry
+        company_name = sanitize_string(request.company_name, max_length=255) if request.company_name else ticker
         new_stock = Stock(
             ticker=ticker,
-            company_name=request.company_name or ticker  # Use provided name or ticker
+            company_name=company_name
         )
         db.add(new_stock)
         db.commit()
@@ -120,6 +124,8 @@ async def remove_stock_from_watchlist(
     Remove a stock ticker from the watchlist.
     """
     try:
+        # Validate input
+        validate_ticker(request.ticker)
         ticker = request.ticker.upper()
         
         # Find the stock

@@ -13,6 +13,7 @@ import logging
 from ...database.connection import get_db
 from ...models.schemas import PremiumQueryRequest, PremiumQueryResponse
 from ...services.query_service import QueryService
+from ...utils.security import validate_ticker, validate_positive_number, validate_option_type
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,16 @@ async def query_premium(
     - 500: Internal server error
     """
     try:
+        # Security validations
+        validate_ticker(request.ticker)
+        validate_option_type(request.option_type.value)
+        
+        if request.strike_price:
+            validate_positive_number(request.strike_price, "strike_price", max_value=1000000)
+        
+        if request.duration_days:
+            validate_positive_number(request.duration_days, "duration_days", max_value=365)
+        
         query_service = QueryService(db)
         response = query_service.query_premium_statistics(request)
         

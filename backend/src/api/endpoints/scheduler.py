@@ -8,10 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Annotated
 import logging
+import pytz
 
 from ...database.connection import get_db
 from ...models.schemas import SchedulerConfig, SchedulerConfigRequest, SuccessResponse, MonitoringStatus, RateLimitCalculation
 from ...services.scheduler import get_scheduler_service
+from ...utils.security import validate_integer_range
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,20 @@ async def update_scheduler_config(
     Update the scheduler configuration.
     """
     try:
+        # Validate inputs
+        if request.polling_interval_minutes is not None:
+            validate_integer_range(request.polling_interval_minutes, min_value=1, max_value=1440, field_name="polling_interval_minutes")
+        if request.stock_delay_seconds is not None:
+            validate_integer_range(request.stock_delay_seconds, min_value=0, max_value=300, field_name="stock_delay_seconds")
+        if request.max_expirations is not None:
+            validate_integer_range(request.max_expirations, min_value=1, max_value=100, field_name="max_expirations")
+        if request.timezone is not None:
+            # Validate timezone
+            try:
+                pytz.timezone(request.timezone)
+            except pytz.exceptions.UnknownTimeZoneError:
+                raise HTTPException(status_code=400, detail=f"Invalid timezone: {request.timezone}")
+        
         from ...models.scraper_schedule import ScraperSchedule
         
         config = db.query(ScraperSchedule).first()

@@ -3,11 +3,14 @@ import asyncio
 from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
+from fastapi.testclient import TestClient
+
 from src.database.connection import Base, get_db
 from src.api.main import app
 
-# Test database URL (use SQLite for fast tests)
-TEST_DATABASE_URL = "sqlite:///./test.db"
+# Test database URL (use in-memory SQLite for fast, isolated tests)
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -17,15 +20,28 @@ def event_loop():
     loop.close()
 
 @pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
+def db_engine():
+    """
+    Create a fresh database engine for each test.
+    Uses in-memory SQLite for fast, isolated tests.
+    """
+    engine = create_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+@pytest.fixture(scope="function")
+def db_session(db_engine) -> Generator[Session, None, None]:
     """
     Create a fresh database session for each test.
     Rollback all changes after test completes.
     """
-    engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
     session = TestingSessionLocal()
     
     try:
@@ -33,17 +49,39 @@ def db_session() -> Generator[Session, None, None]:
     finally:
         session.rollback()
         session.close()
-        Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")
-def override_get_db(db_session: Session):
-    """Override FastAPI dependency to use test database"""
-    def _override_get_db():
+def test_client(db_session: Session):
+    """
+    Create a FastAPI test client with a test database session.
+    Automatically overrides the database dependency.
+    """
+    def override_get_db():
         try:
             yield db_session
         finally:
             pass
     
-    app.dependency_overrides[get_db] = _override_get_db
-    yield
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as client:
+        yield client
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def sample_stock_data():
+    """Provide sample stock data for testing."""
+    return {
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+    }
+
+@pytest.fixture
+def sample_premium_data():
+    """Provide sample option premium data for testing."""
+    return {
+        "ticker": "AAPL",
+        "strike_price": 150.0,
+        "expiration_date": "2024-12-20",
+        "option_type": "call",
+        "premium": 5.50,
+    }
