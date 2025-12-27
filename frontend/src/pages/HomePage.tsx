@@ -8,11 +8,13 @@ const HomePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<PremiumQueryResponse | null>(null);
+  const [lastRequest, setLastRequest] = useState<PremiumQueryRequest | null>(null);
 
   const handleQuery = async (request: PremiumQueryRequest) => {
     setLoading(true);
     setError(null);
     setResponse(null);
+    setLastRequest(request);
 
     try {
       const result = await apiClient.queryPremium(request);
@@ -47,7 +49,12 @@ const HomePage: React.FC = () => {
         </div>
 
         <div className="query-results-wrapper">
-          <PremiumResults response={response} loading={loading} error={error} />
+          <PremiumResults 
+            response={response} 
+            loading={loading} 
+            error={error}
+            queryRequest={lastRequest}
+          />
         </div>
       </div>
     </div>

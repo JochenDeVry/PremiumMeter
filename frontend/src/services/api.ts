@@ -82,6 +82,29 @@ class APIClient {
     return response.data;
   }
 
+  async queryPremiumDistribution(request: {
+    ticker: string;
+    option_type: string;
+    strike_price: number;
+    duration_days: number;
+    duration_tolerance_days?: number;
+    lookback_days?: number;
+  }): Promise<{
+    ticker: string;
+    option_type: string;
+    strike_price: number;
+    duration_days: number;
+    premiums: number[];
+    data_points: number;
+    collection_period: { start: string; end: string };
+  }> {
+    const response = await this.client.post(
+      '/api/query/premium-distribution',
+      request
+    );
+    return response.data;
+  }
+
   async getChartData(request: ChartDataRequest): Promise<ChartDataResponse> {
     const response = await this.client.post<ChartDataResponse>(
       '/api/query/chart-data',
