@@ -8,9 +8,13 @@ import type {
   WatchlistResponse,
   AddStockRequest,
   RemoveStockRequest,
+  UpdateStockStatusRequest,
+  BulkStockActionRequest,
   SchedulerConfig,
   SchedulerConfigRequest,
   RateLimitCalculation,
+  ScraperProgress,
+  ScraperRunHistoryResponse,
   StockListResponse,
   StockDetailsResponse,
   ErrorResponse,
@@ -105,6 +109,62 @@ class APIClient {
     return response.data;
   }
 
+  async queryPremiumBoxPlot(request: {
+    ticker: string;
+    option_type: string;
+    strike_price: number;
+    duration_days: number;
+    duration_tolerance_days?: number;
+    lookback_days?: number;
+  }): Promise<{
+    ticker: string;
+    option_type: string;
+    strike_price: number;
+    duration_days: number;
+    data_points: Array<{
+      stock_price: number;
+      premium: number;
+      timestamp: string;
+    }>;
+    total_points: number;
+    stock_price_range: {
+      min: number;
+      max: number;
+      mean: number;
+    };
+    collection_period: { start: string; end: string };
+  }> {
+    const response = await this.client.post(
+      '/api/query/premium-boxplot',
+      request
+    );
+    return response.data;
+  }
+
+  async queryPremiumSurface(request: {
+    ticker: string;
+    option_type: string;
+    duration_days: number;
+    duration_tolerance_days?: number;
+    lookback_days?: number;
+  }): Promise<{
+    ticker: string;
+    option_type: string;
+    duration_days: number;
+    strike_prices: number[];
+    stock_prices: number[];
+    premium_grid: (number | null)[][];
+    data_point_counts: number[][];
+    total_points: number;
+    collection_period: { start: string; end: string };
+  }> {
+    const response = await this.client.post(
+      '/api/query/premium-surface',
+      request
+    );
+    return response.data;
+  }
+
   async getChartData(request: ChartDataRequest): Promise<ChartDataResponse> {
     const response = await this.client.post<ChartDataResponse>(
       '/api/query/chart-data',
@@ -137,6 +197,22 @@ class APIClient {
     return response.data;
   }
 
+  async updateStockStatus(request: UpdateStockStatusRequest): Promise<SuccessResponse> {
+    const response = await this.client.post<SuccessResponse>(
+      '/api/watchlist/update-status',
+      request
+    );
+    return response.data;
+  }
+
+  async bulkStockAction(request: BulkStockActionRequest): Promise<SuccessResponse> {
+    const response = await this.client.post<SuccessResponse>(
+      '/api/watchlist/bulk-action',
+      request
+    );
+    return response.data;
+  }
+
   // ==========================================================================
   // Scheduler Endpoints
   // ==========================================================================
@@ -161,8 +237,10 @@ class APIClient {
     return response.data;
   }
 
-  async resumeScheduler(): Promise<SuccessResponse> {
-    const response = await this.client.post<SuccessResponse>('/api/scheduler/resume');
+  async resumeScheduler(startNow: boolean = false): Promise<SuccessResponse> {
+    const response = await this.client.post<SuccessResponse>('/api/scheduler/resume', null, {
+      params: { start_now: startNow }
+    });
     return response.data;
   }
 
@@ -180,12 +258,34 @@ class APIClient {
     return response.data;
   }
 
+  async getScraperProgress(): Promise<ScraperProgress> {
+    const response = await this.client.get<ScraperProgress>('/api/scheduler/progress');
+    return response.data;
+  }
+
+  async getRunHistory(limit: number = 20): Promise<ScraperRunHistoryResponse> {
+    const response = await this.client.get<ScraperRunHistoryResponse>('/api/scheduler/run-history', {
+      params: { limit }
+    });
+    return response.data;
+  }
+
   // ==========================================================================
   // Stock Endpoints
   // ==========================================================================
 
   async listAllStocks(): Promise<Array<{ticker: string, company_name: string}>> {
     const response = await this.client.get<Array<{ticker: string, company_name: string}>>('/api/stocks');
+    return response.data;
+  }
+
+  async getStockPrice(ticker: string): Promise<{
+    ticker: string;
+    company_name: string;
+    latest_price: number | null;
+    price_timestamp: string | null;
+  }> {
+    const response = await this.client.get(`/api/stocks/${ticker}/price`);
     return response.data;
   }
 

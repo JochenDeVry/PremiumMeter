@@ -43,12 +43,12 @@ const HomePage: React.FC = () => {
         </p>
       </section>
 
-      <div className="query-section">
-        <div className="query-form-wrapper">
+      <div className="query-section-fullwidth">
+        <div className="query-form-wrapper-fullwidth">
           <QueryForm onSubmit={handleQuery} loading={loading} />
         </div>
 
-        <div className="query-results-wrapper">
+        <div className="query-results-wrapper-fullwidth">
           <PremiumResults 
             response={response} 
             loading={loading} 

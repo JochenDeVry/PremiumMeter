@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import apiClient, { APIError } from '../services/api';
 import type { SchedulerConfig, WatchlistResponse } from '../types/api';
 import { SchedulerConfigPanel } from '../components/SchedulerConfigPanel';
+import { ScraperRunHistory } from '../components/ScraperRunHistory';
 
 type SortColumn = 'ticker' | 'company_name' | 'status' | 'data_points_count' | 'last_scraped';
 type SortDirection = 'asc' | 'desc';
@@ -22,6 +23,13 @@ const AdminPage: React.FC = () => {
   const [addSearchTerm, setAddSearchTerm] = useState('');
   const [selectedTicker, setSelectedTicker] = useState('');
   const [operationInProgress, setOperationInProgress] = useState(false);
+  const [selectedStocks, setSelectedStocks] = useState<Set<number>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string>('');
+  const [selectAll, setSelectAll] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [minDataPoints, setMinDataPoints] = useState<string>('');
+  const [maxDataPoints, setMaxDataPoints] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -65,9 +73,9 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleResumeScheduler = async () => {
+  const handleResumeScheduler = async (startNow: boolean = false) => {
     try {
-      await apiClient.resumeScheduler();
+      await apiClient.resumeScheduler(startNow);
       await loadData(); // Reload to get updated status
     } catch (err) {
       if (err instanceof APIError) {
@@ -151,11 +159,123 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const handleActivateStock = async (ticker: string) => {
+    const scrollPosition = window.scrollY;
+    setOperationInProgress(true);
+    try {
+      await apiClient.updateStockStatus({ ticker, status: 'active' });
+      await loadData();
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPosition);
+      });
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.message);
+      } else {
+        setError('Failed to activate stock');
+      }
+    } finally {
+      setOperationInProgress(false);
+    }
+  };
+
+  const handleDeactivateStock = async (ticker: string) => {
+    const scrollPosition = window.scrollY;
+    setOperationInProgress(true);
+    try {
+      await apiClient.updateStockStatus({ ticker, status: 'inactive' });
+      await loadData();
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPosition);
+      });
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.message);
+      } else {
+        setError('Failed to deactivate stock');
+      }
+    } finally {
+      setOperationInProgress(false);
+    }
+  };
+
+  const handleToggleStock = (stockId: number) => {
+    setSelectedStocks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(stockId)) {
+        newSet.delete(stockId);
+      } else {
+        newSet.add(stockId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleToggleAllVisible = (displayedStocks: any[]) => {
+    if (selectAll) {
+      setSelectedStocks(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedStocks(new Set(displayedStocks.map(s => s.stock_id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedStocks.size === 0) {
+      setError('Please select at least one stock');
+      return;
+    }
+
+    if (!bulkAction) {
+      setError('Please select an action');
+      return;
+    }
+
+    if (bulkAction === 'remove') {
+      if (!confirm(`Are you sure you want to remove ${selectedStocks.size} stock(s) from the watchlist? This will delete all historical data for these stocks.`)) {
+        return;
+      }
+    }
+
+    const scrollPosition = window.scrollY;
+    setOperationInProgress(true);
+    try {
+      const tickers = watchlist?.watchlist
+        .filter(s => selectedStocks.has(s.stock_id))
+        .map(s => s.ticker) || [];
+
+      await apiClient.bulkStockAction({
+        tickers,
+        action: bulkAction as 'activate' | 'deactivate' | 'remove'
+      });
+
+      setSelectedStocks(new Set());
+      setSelectAll(false);
+      setBulkAction('');
+      await loadData();
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPosition);
+      });
+    } catch (err) {
+      if (err instanceof APIError) {
+        setError(err.message);
+      } else {
+        setError('Failed to perform bulk action');
+      }
+    } finally {
+      setOperationInProgress(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container">
         <h1>Admin Panel</h1>
-        <p>Loading...</p>
+        <div className="loading-container">
+          <div className="spinner"></div>
+          <p>Loading admin data...</p>
+        </div>
       </div>
     );
   }
@@ -187,22 +307,40 @@ const AdminPage: React.FC = () => {
         )}
       </section>
 
+      {/* Scraper Run History */}
+      <ScraperRunHistory />
+
       <section className="section">
         <h2>Watchlist Overview</h2>
         {watchlist ? (
           <div>
             <div className="watchlist-controls">
-              <div className="search-bar">
-                <input
-                  type="text"
-                  placeholder="Search by ticker or company name..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="search-input"
-                />
+              <div className="filter-info">
+                {(searchTerm || statusFilter !== 'all' || minDataPoints || maxDataPoints) && (
+                  <span className="active-filters-badge">
+                    Filters active
+                  </span>
+                )}
+              </div>
+              <div className="bulk-actions">
+                <select 
+                  value={bulkAction} 
+                  onChange={(e) => setBulkAction(e.target.value)}
+                  className="bulk-action-select"
+                  disabled={selectedStocks.size === 0 || operationInProgress}
+                >
+                  <option value="">Bulk Actions ({selectedStocks.size} selected)</option>
+                  <option value="activate">Activate Selected</option>
+                  <option value="deactivate">Deactivate Selected</option>
+                  <option value="remove">Remove Selected</option>
+                </select>
+                <button
+                  onClick={handleBulkAction}
+                  className="button button-secondary button-sm"
+                  disabled={!bulkAction || selectedStocks.size === 0 || operationInProgress}
+                >
+                  Apply
+                </button>
               </div>
               <button 
                 onClick={handleOpenAddModal}
@@ -233,6 +371,31 @@ const AdminPage: React.FC = () => {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th style={{width: '50px'}}>
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={() => {
+                        const filteredStocks = watchlist.watchlist.filter(stock => {
+                          const searchLower = searchTerm.toLowerCase();
+                          const matchesSearch = !searchTerm || 
+                            stock.ticker.toLowerCase().includes(searchLower) ||
+                            stock.company_name.toLowerCase().includes(searchLower);
+                          const matchesStatus = statusFilter === 'all' || stock.status === statusFilter;
+                          const minDP = minDataPoints ? parseInt(minDataPoints) : null;
+                          const maxDP = maxDataPoints ? parseInt(maxDataPoints) : null;
+                          const matchesDataPoints = 
+                            (!minDP || stock.data_points_count >= minDP) &&
+                            (!maxDP || stock.data_points_count <= maxDP);
+                          return matchesSearch && matchesStatus && matchesDataPoints;
+                        });
+                        const startIndex = (currentPage - 1) * itemsPerPage;
+                        const endIndex = startIndex + itemsPerPage;
+                        const displayedStocks = filteredStocks.slice(startIndex, endIndex);
+                        handleToggleAllVisible(displayedStocks);
+                      }}
+                    />
+                  </th>
                   <th className="sortable" onClick={() => handleSort('ticker')}>
                     Ticker {sortColumn === 'ticker' && (sortDirection === 'asc' ? '▲' : '▼')}
                   </th>
@@ -250,14 +413,111 @@ const AdminPage: React.FC = () => {
                   </th>
                   <th>Actions</th>
                 </tr>
+                <tr className="filter-row">
+                  <th>
+                    <button 
+                      onClick={() => setShowFilters(!showFilters)}
+                      className="filter-toggle"
+                      title="Toggle filters"
+                    >
+                      {showFilters ? '▼' : '▶'}
+                    </button>
+                  </th>
+                  <th>
+                    {showFilters && (
+                      <input
+                        type="text"
+                        placeholder="Filter ticker..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="column-filter"
+                      />
+                    )}
+                  </th>
+                  <th>
+                    {showFilters && (
+                      <input
+                        type="text"
+                        placeholder="Filter company..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="column-filter"
+                      />
+                    )}
+                  </th>
+                  <th>
+                    {showFilters && (
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="column-filter"
+                      >
+                        <option value="all">All</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Inactive</option>
+                      </select>
+                    )}
+                  </th>
+                  <th>
+                    {showFilters && (
+                      <div style={{display: 'flex', gap: '2px', flexDirection: 'column'}}>
+                        <input
+                          type="number"
+                          placeholder="Min"
+                          value={minDataPoints}
+                          onChange={(e) => setMinDataPoints(e.target.value)}
+                          className="column-filter column-filter-small"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Max"
+                          value={maxDataPoints}
+                          onChange={(e) => setMaxDataPoints(e.target.value)}
+                          className="column-filter column-filter-small"
+                        />
+                      </div>
+                    )}
+                  </th>
+                  <th></th>
+                  <th>
+                    {showFilters && (
+                      <button
+                        onClick={() => {
+                          setSearchTerm('');
+                          setStatusFilter('all');
+                          setMinDataPoints('');
+                          setMaxDataPoints('');
+                        }}
+                        className="button button-secondary button-sm"
+                        style={{fontSize: '0.75rem', padding: '0.2rem 0.4rem'}}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </th>
+                </tr>
               </thead>
               <tbody>
                 {(() => {
-                  // Filter by search term
+                  // Filter by all criteria
                   let filteredStocks = watchlist.watchlist.filter(stock => {
+                    // Search term filter (ticker or company name)
                     const searchLower = searchTerm.toLowerCase();
-                    return stock.ticker.toLowerCase().includes(searchLower) ||
-                           stock.company_name.toLowerCase().includes(searchLower);
+                    const matchesSearch = !searchTerm || 
+                      stock.ticker.toLowerCase().includes(searchLower) ||
+                      stock.company_name.toLowerCase().includes(searchLower);
+                    
+                    // Status filter
+                    const matchesStatus = statusFilter === 'all' || stock.status === statusFilter;
+                    
+                    // Data points filter
+                    const minDP = minDataPoints ? parseInt(minDataPoints) : null;
+                    const maxDP = maxDataPoints ? parseInt(maxDataPoints) : null;
+                    const matchesDataPoints = 
+                      (!minDP || stock.data_points_count >= minDP) &&
+                      (!maxDP || stock.data_points_count <= maxDP);
+                    
+                    return matchesSearch && matchesStatus && matchesDataPoints;
                   });
 
                   // Sort the filtered results
@@ -289,6 +549,13 @@ const AdminPage: React.FC = () => {
                   
                   return displayedStocks.map((stock) => (
                     <tr key={stock.stock_id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedStocks.has(stock.stock_id)}
+                          onChange={() => handleToggleStock(stock.stock_id)}
+                        />
+                      </td>
                       <td><strong>{stock.ticker}</strong></td>
                       <td>{stock.company_name}</td>
                       <td>
@@ -303,14 +570,32 @@ const AdminPage: React.FC = () => {
                           : 'Never'}
                       </td>
                       <td>
-                        <button
-                          onClick={() => handleRemoveStock(stock.ticker)}
-                          className="button button-danger button-sm"
-                          disabled={operationInProgress}
-                          title="Remove from watchlist"
-                        >
-                          Remove
-                        </button>
+                        <div style={{display: 'flex', gap: '5px', flexWrap: 'wrap'}}>
+                          <button
+                            onClick={() => handleActivateStock(stock.ticker)}
+                            className="button button-success button-sm"
+                            disabled={operationInProgress || stock.status === 'active'}
+                            title="Activate stock"
+                          >
+                            Activate
+                          </button>
+                          <button
+                            onClick={() => handleDeactivateStock(stock.ticker)}
+                            className="button button-warning button-sm"
+                            disabled={operationInProgress || stock.status !== 'active'}
+                            title="Deactivate stock"
+                          >
+                            Deactivate
+                          </button>
+                          <button
+                            onClick={() => handleRemoveStock(stock.ticker)}
+                            className="button button-danger button-sm"
+                            disabled={operationInProgress}
+                            title="Remove from watchlist"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ));
@@ -320,15 +605,25 @@ const AdminPage: React.FC = () => {
             {(() => {
               const filteredCount = watchlist.watchlist.filter(stock => {
                 const searchLower = searchTerm.toLowerCase();
-                return stock.ticker.toLowerCase().includes(searchLower) ||
-                       stock.company_name.toLowerCase().includes(searchLower);
+                const matchesSearch = !searchTerm || 
+                  stock.ticker.toLowerCase().includes(searchLower) ||
+                  stock.company_name.toLowerCase().includes(searchLower);
+                const matchesStatus = statusFilter === 'all' || stock.status === statusFilter;
+                const minDP = minDataPoints ? parseInt(minDataPoints) : null;
+                const maxDP = maxDataPoints ? parseInt(maxDataPoints) : null;
+                const matchesDataPoints = 
+                  (!minDP || stock.data_points_count >= minDP) &&
+                  (!maxDP || stock.data_points_count <= maxDP);
+                return matchesSearch && matchesStatus && matchesDataPoints;
               }).length;
+
+              const hasActiveFilters = searchTerm || statusFilter !== 'all' || minDataPoints || maxDataPoints;
 
               return (
                 <>
-                  {searchTerm && (
+                  {hasActiveFilters && (
                     <p className="search-results-info">
-                      Found {filteredCount} stock{filteredCount !== 1 ? 's' : ''} matching "{searchTerm}"
+                      Found {filteredCount} stock{filteredCount !== 1 ? 's' : ''} matching filters
                     </p>
                   )}
                   {itemsPerPage < filteredCount && (
@@ -384,7 +679,11 @@ const AdminPage: React.FC = () => {
             </div>
             <div className="modal-body">
               {loadingStocks ? (
-                <p>Loading available stocks...</p>
+                <div className="loading-container">
+                  <div className="spinner"></div>
+                  <p>Loading available stocks...</p>
+                  <p className="info-text">This may take up to 15 seconds</p>
+                </div>
               ) : (
                 <>
                   <div className="form-group">

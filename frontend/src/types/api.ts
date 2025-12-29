@@ -27,6 +27,13 @@ export enum MonitoringStatus {
   PAUSED = 'paused',
 }
 
+export enum SchedulerStatus {
+  IDLE = 'idle',
+  RUNNING = 'running',
+  PAUSED = 'paused',
+  ERROR = 'error',
+}
+
 export enum StockStatus {
   ACTIVE = 'active',
   DELISTED = 'delisted',
@@ -131,6 +138,55 @@ export interface RemoveStockRequest {
   ticker: string;
 }
 
+export interface UpdateStockStatusRequest {
+  ticker: string;
+  status: string;
+}
+
+export interface BulkStockActionRequest {
+  tickers: string[];
+  action: 'activate' | 'deactivate' | 'remove';
+}
+
+export interface ScraperProgress {
+  is_running: boolean;
+  total_stocks: number;
+  completed_stocks: number;
+  current_stock?: string;
+  current_source?: string;
+  pending_stocks: string[];
+  completed_stock_list: string[];
+  failed_stocks: string[];
+  start_time?: string;
+  estimated_completion?: string;
+}
+
+export interface StockScrapeLog {
+  ticker: string;
+  status: 'success' | 'failed';
+  source_used?: string;
+  contracts_scraped?: number;
+  timestamp: string;
+  error_message?: string;
+}
+
+export interface ScraperRun {
+  id: number;
+  start_time: string;
+  end_time?: string;
+  status: 'running' | 'completed' | 'failed';
+  total_stocks: number;
+  successful_stocks: number;
+  failed_stocks: number;
+  total_contracts: number;
+  stock_logs: StockScrapeLog[];
+}
+
+export interface ScraperRunHistoryResponse {
+  runs: ScraperRun[];
+  total_count: number;
+}
+
 // ============================================================================
 // Scheduler Types
 // ============================================================================
@@ -142,7 +198,7 @@ export interface SchedulerConfig {
   timezone: string;
   exclude_weekends: boolean;
   exclude_holidays: boolean;
-  status: MonitoringStatus;
+  status: SchedulerStatus;
   next_run?: string;
   last_run?: string;
   stock_delay_seconds: number;

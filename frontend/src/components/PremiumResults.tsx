@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { PremiumQueryResponse, PremiumResult, PremiumQueryRequest } from '../types/api';
 import PremiumHistogram from './PremiumHistogram';
+import PremiumBoxPlot from './PremiumBoxPlot';
+import PremiumSurface3D from './PremiumSurface3D';
 import apiClient from '../services/api';
 
 interface PremiumResultsProps {
@@ -19,11 +21,36 @@ interface HistogramData {
   dataPoints: number;
 }
 
+interface BoxPlotData {
+  dataPoints: Array<{
+    stock_price: number;
+    premium: number;
+    timestamp: string;
+  }>;
+  ticker: string;
+  optionType: string;
+  strikePrice: number;
+  durationDays: number;
+  stockPriceRange: {
+    min: number;
+    max: number;
+    mean: number;
+  };
+  totalPoints: number;
+}
+
 const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, error, queryRequest }) => {
   const [histogramData, setHistogramData] = useState<HistogramData | null>(null);
   const [histogramLoading, setHistogramLoading] = useState(false);
   const [histogramError, setHistogramError] = useState<string | null>(null);
   const [selectedStrike, setSelectedStrike] = useState<number | null>(null);
+
+  const [boxPlotData, setBoxPlotData] = useState<BoxPlotData | null>(null);
+  const [boxPlotLoading, setBoxPlotLoading] = useState(false);
+  const [boxPlotError, setBoxPlotError] = useState<string | null>(null);
+  const [selectedBoxPlotStrike, setSelectedBoxPlotStrike] = useState<number | null>(null);
+
+  const [show3DSurface, setShow3DSurface] = useState(false);
 
   const fetchHistogramData = async (result: PremiumResult) => {
     if (!response || !queryRequest) return;
@@ -75,6 +102,54 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
       setHistogramLoading(false);
     }
   };
+
+  const fetchBoxPlotData = async (result: PremiumResult) => {
+    if (!response || !queryRequest) return;
+
+    setBoxPlotLoading(true);
+    setBoxPlotError(null);
+    setSelectedBoxPlotStrike(result.strike_price);
+
+    try {
+      const optionTypeValue = typeof response.option_type === 'string' 
+        ? response.option_type 
+        : response.option_type.valueOf();
+
+      const durationDays = queryRequest.duration_days || 30;
+      const durationTolerance = queryRequest.duration_tolerance_days ?? 0;
+      const lookback = queryRequest.lookback_days || 30;
+
+      const requestData = {
+        ticker: response.ticker,
+        option_type: optionTypeValue,
+        strike_price: result.strike_price,
+        duration_days: durationDays,
+        duration_tolerance_days: durationTolerance,
+        lookback_days: lookback,
+      };
+
+      console.log('Box plot request:', requestData);
+
+      const data = await apiClient.queryPremiumBoxPlot(requestData);
+
+      setBoxPlotData({
+        dataPoints: data.data_points,
+        ticker: data.ticker,
+        optionType: data.option_type,
+        strikePrice: data.strike_price,
+        durationDays: data.duration_days,
+        stockPriceRange: data.stock_price_range,
+        totalPoints: data.total_points,
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load box plot data';
+      setBoxPlotError(errorMsg);
+      console.error('Box plot error:', err);
+    } finally {
+      setBoxPlotLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="results-container">
@@ -160,7 +235,11 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
               {response.results.map((result: PremiumResult, index: number) => (
                 <tr 
                   key={index}
-                  className={selectedStrike === result.strike_price ? 'selected-row' : ''}
+                  className={
+                    selectedStrike === result.strike_price || selectedBoxPlotStrike === result.strike_price
+                      ? 'selected-row'
+                      : ''
+                  }
                 >
                   <td className="numeric">{formatNumber(result.strike_price)}</td>
                   <td className="numeric">{result.duration_days}</td>
@@ -179,6 +258,14 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
                     >
                       📊 Histogram
                     </button>
+                    <button
+                      className="boxplot-btn"
+                      onClick={() => fetchBoxPlotData(result)}
+                      disabled={boxPlotLoading}
+                      title="View premium vs stock price box plot"
+                    >
+                      📦 Box Plot
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -188,6 +275,12 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
           <div className="results-summary">
             <p><strong>Total Results:</strong> {response.results.length} strike/duration combinations</p>
             <p><strong>Total Data Points:</strong> {response.results.reduce((sum, r) => sum + r.data_points, 0)}</p>
+            <button
+              className="surface-3d-toggle-btn"
+              onClick={() => setShow3DSurface(!show3DSurface)}
+            >
+              {show3DSurface ? '✕ Hide' : '🎲 View'} 3D Premium Surface
+            </button>
           </div>
         </div>
       )}
@@ -214,6 +307,47 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
           strikePrice={histogramData.strikePrice}
           durationDays={histogramData.durationDays}
           dataPoints={histogramData.dataPoints}
+        />
+      )}
+
+      {/* Box Plot Section */}
+      {boxPlotLoading && (
+        <div className="histogram-loading">
+          <div className="spinner"></div>
+          <p>Loading box plot data...</p>
+        </div>
+      )}
+
+      {boxPlotError && (
+        <div className="histogram-error">
+          <p>Error loading box plot: {boxPlotError}</p>
+        </div>
+      )}
+
+      {boxPlotData && !boxPlotLoading && !boxPlotError && (
+        <PremiumBoxPlot
+          ticker={boxPlotData.ticker}
+          optionType={boxPlotData.optionType}
+          strikePrice={boxPlotData.strikePrice}
+          durationDays={boxPlotData.durationDays}
+          dataPoints={boxPlotData.dataPoints}
+          stockPriceRange={boxPlotData.stockPriceRange}
+        />
+      )}
+
+      {/* 3D Surface Section */}
+      {show3DSurface && response && queryRequest && (
+        <PremiumSurface3D
+          ticker={response.ticker}
+          optionType={
+            typeof response.option_type === 'string'
+              ? response.option_type
+              : response.option_type.valueOf()
+          }
+          initialDuration={queryRequest.duration_days || 30}
+          lookbackDays={queryRequest.lookback_days || 30}
+          toleranceDays={queryRequest.duration_tolerance_days ?? 3}
+          queryStrikePrices={response.results.map(r => r.strike_price)}
         />
       )}
     </div>

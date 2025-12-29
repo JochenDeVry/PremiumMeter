@@ -11,7 +11,10 @@ import logging
 import pytz
 
 from ...database.connection import get_db
-from ...models.schemas import SchedulerConfig, SchedulerConfigRequest, SuccessResponse, MonitoringStatus, RateLimitCalculation
+from ...models.schemas import (
+    SchedulerConfig, SchedulerConfigRequest, SuccessResponse, SchedulerStatus, 
+    RateLimitCalculation, ScraperProgress, ScraperRunHistoryResponse, ScraperRunSchema, StockScrapeLogSchema
+)
 from ...services.scheduler import get_scheduler_service
 from ...utils.security import validate_integer_range
 
@@ -40,9 +43,8 @@ async def get_scheduler_config(
                 detail="Scheduler configuration not found"
             )
         
-        # Determine if scheduler is running
-        is_running = scheduler_service.scheduler and scheduler_service.scheduler.running
-        status = MonitoringStatus.active if is_running and config.scheduler_status.value != 'paused' else MonitoringStatus.paused
+        # Return actual scheduler status from database
+        status = SchedulerStatus(config.scheduler_status.value)
         
         return SchedulerConfig(
             polling_interval_minutes=config.polling_interval_minutes,
@@ -191,20 +193,33 @@ async def pause_scheduler(
 
 @router.post("/resume", response_model=SuccessResponse)
 async def resume_scheduler(
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
+    start_now: bool = False
 ) -> SuccessResponse:
     """
     Resume the scheduler (restart automatic data collection).
+    
+    Args:
+        start_now: If True, trigger an immediate scrape run before scheduling
     """
     try:
         scheduler_service = get_scheduler_service()
         scheduler_service.resume(db)
         
+        # If start_now is True, trigger immediate scrape
+        if start_now:
+            logger.info("Triggering immediate scrape run")
+            # Run scraper in background
+            import threading
+            thread = threading.Thread(target=scheduler_service._scraper_job_wrapper)
+            thread.daemon = True
+            thread.start()
+        
         logger.info("Scheduler resumed")
         
         return SuccessResponse(
             success=True,
-            message="Scheduler resumed successfully"
+            message="Scheduler resumed successfully" + (" and immediate scrape started" if start_now else "")
         )
     
     except Exception as e:
@@ -229,7 +244,7 @@ async def calculate_rate_limits(
     """
     try:
         from ...models.scraper_schedule import ScraperSchedule
-        from ...models.watchlist import Watchlist, MonitoringStatus as WatchlistStatus
+        from ...models.stock import Stock, StockStatus
         
         # Load config from DB
         config = db.query(ScraperSchedule).first()
@@ -244,9 +259,9 @@ async def calculate_rate_limits(
         delay = stock_delay_seconds if stock_delay_seconds is not None else config.stock_delay_seconds
         max_exp = max_expirations if max_expirations is not None else config.max_expirations
         
-        # Get active watchlist count
-        watchlist_size = db.query(Watchlist).filter(
-            Watchlist.monitoring_status == WatchlistStatus.active
+        # Get active stocks count (only active stocks are scraped)
+        watchlist_size = db.query(Stock).filter(
+            Stock.status == StockStatus.active
         ).count()
         
         # Calculate requests per stock: 1 price + 1 expirations + N option chains
@@ -314,3 +329,105 @@ async def calculate_rate_limits(
             detail=f"Failed to calculate rate limits: {str(e)}"
         )
 
+
+@router.get("/progress", response_model=ScraperProgress)
+async def get_scraper_progress() -> ScraperProgress:
+    """
+    Get current scraper progress.
+    """
+    try:
+        from ...services.scheduler import get_scraper_progress
+        
+        progress = get_scraper_progress()
+        
+        return ScraperProgress(
+            is_running=progress["is_running"],
+            total_stocks=progress["total_stocks"],
+            completed_stocks=progress["completed_stocks"],
+            current_stock=progress["current_stock"],
+            current_source=progress["current_source"],
+            pending_stocks=progress["pending_stocks"],
+            completed_stock_list=progress["completed_stock_list"],
+            failed_stocks=progress["failed_stocks"],
+            start_time=progress["start_time"],
+            estimated_completion=progress["estimated_completion"]
+        )
+    
+    except Exception as e:
+        logger.error(f"Error getting scraper progress: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get scraper progress: {str(e)}"
+        )
+
+
+@router.get("/run-history", response_model=ScraperRunHistoryResponse)
+async def get_run_history(
+    db: Annotated[Session, Depends(get_db)],
+    limit: int = 20
+) -> ScraperRunHistoryResponse:
+    """
+    Get scraper run history with detailed logs.
+    Returns last N runs (default 20) with stock-by-stock details.
+    """
+    try:
+        from ...models.scraper_run_log import ScraperRun, ScraperStockLog
+        
+        # Query recent runs, ordered by start time descending
+        runs = (
+            db.query(ScraperRun)
+            .order_by(ScraperRun.start_time.desc())
+            .limit(min(limit, 50))  # Cap at 50 runs max
+            .all()
+        )
+        
+        # Convert to response schema
+        run_schemas = []
+        for run in runs:
+            # Get stock logs for this run
+            stock_logs = (
+                db.query(ScraperStockLog)
+                .filter(ScraperStockLog.run_id == run.id)
+                .order_by(ScraperStockLog.timestamp)
+                .all()
+            )
+            
+            stock_log_schemas = [
+                StockScrapeLogSchema(
+                    ticker=log.ticker,
+                    status=log.status.value,
+                    source_used=log.source_used,
+                    contracts_scraped=log.contracts_scraped,
+                    timestamp=log.timestamp.isoformat(),
+                    error_message=log.error_message
+                )
+                for log in stock_logs
+            ]
+            
+            run_schemas.append(
+                ScraperRunSchema(
+                    id=run.id,
+                    start_time=run.start_time.isoformat(),
+                    end_time=run.end_time.isoformat() if run.end_time else None,
+                    status=run.status.value,
+                    total_stocks=run.total_stocks,
+                    successful_stocks=run.successful_stocks,
+                    failed_stocks=run.failed_stocks,
+                    total_contracts=run.total_contracts,
+                    stock_logs=stock_log_schemas
+                )
+            )
+        
+        total_count = db.query(ScraperRun).count()
+        
+        return ScraperRunHistoryResponse(
+            runs=run_schemas,
+            total_count=total_count
+        )
+    
+    except Exception as e:
+        logger.error(f"Error getting run history: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get run history: {str(e)}"
+        )

@@ -29,6 +29,31 @@ from .scraper import create_scraper
 
 logger = logging.getLogger(__name__)
 
+# Global progress tracker
+_scraper_progress = {
+    "is_running": False,
+    "total_stocks": 0,
+    "completed_stocks": 0,
+    "current_stock": None,
+    "current_source": None,
+    "pending_stocks": [],
+    "completed_stock_list": [],
+    "failed_stocks": [],
+    "start_time": None,
+    "estimated_completion": None
+}
+
+
+def get_scraper_progress():
+    """Get current scraper progress"""
+    return _scraper_progress.copy()
+
+
+def update_scraper_progress(**kwargs):
+    """Update scraper progress"""
+    global _scraper_progress
+    _scraper_progress.update(kwargs)
+
 
 class SchedulerService:
     """
@@ -140,6 +165,7 @@ class SchedulerService:
         config = self._load_config(db)
         if config:
             config.scheduler_status = SchedulerStatus.idle
+            config.next_run_timestamp = self.get_next_run_time()
             db.commit()
         
         logger.info("Scheduler resumed")
@@ -196,6 +222,10 @@ class SchedulerService:
         
         # Reschedule jobs with new configuration
         self._reschedule_scraper_job(config)
+        
+        # Update next_run_timestamp after config change
+        config.next_run_timestamp = self.get_next_run_time()
+        db.commit()
         
         logger.info(f"Scheduler configuration updated: {config.polling_interval_minutes}min, "
                    f"{config.market_hours_start}-{config.market_hours_end} {config.timezone}")

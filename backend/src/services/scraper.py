@@ -91,14 +91,31 @@ class YahooFinanceScraper:
         Returns:
             ScraperMetrics with execution statistics
         """
+        from ..services.scheduler import update_scraper_progress
+        from datetime import timedelta
+        from ..models.scraper_run_log import ScraperRun, ScraperStockLog, RunStatus, StockScrapeStatus
+        
         metrics = ScraperMetrics()
         metrics.start_time = datetime.now()
         
         logger.info(f"Starting scraper run: {self.run_id}")
         
+        # Create scraper run record
+        scraper_run = ScraperRun(
+            start_time=metrics.start_time,
+            status=RunStatus.running
+        )
+        self.db.add(scraper_run)
+        self.db.commit()
+        self.db.refresh(scraper_run)
+        
         # Get active watchlist stocks
         active_stocks = self._get_active_watchlist()
         metrics.total_stocks = len(active_stocks)
+        
+        # Update run record with total stocks
+        scraper_run.total_stocks = metrics.total_stocks
+        self.db.commit()
         
         logger.info(f"Found {metrics.total_stocks} active stocks in watchlist")
         
@@ -107,27 +124,102 @@ class YahooFinanceScraper:
         config = self.db.query(ScraperSchedule).first()
         stock_delay = config.stock_delay_seconds if config else 10
         
-        for stock in active_stocks:
+        # Initialize progress tracking
+        pending_tickers = [s.ticker for s in active_stocks]
+        update_scraper_progress(
+            is_running=True,
+            total_stocks=metrics.total_stocks,
+            completed_stocks=0,
+            current_stock=None,
+            pending_stocks=pending_tickers,
+            completed_stock_list=[],
+            failed_stocks=[],
+            start_time=metrics.start_time.isoformat(),
+            estimated_completion=(metrics.start_time + timedelta(seconds=metrics.total_stocks * stock_delay * 1.5)).isoformat()
+        )
+        
+        completed_list = []
+        failed_list = []
+        
+        for idx, stock in enumerate(active_stocks):
+            stock_log_entry = None
             try:
+                # Update current stock being scraped
+                update_scraper_progress(
+                    current_stock=stock.ticker,
+                    pending_stocks=[s.ticker for s in active_stocks[idx+1:]]
+                )
+                
                 # Add delay between stocks to avoid rate limiting
                 time.sleep(stock_delay)
                 
-                contracts_count, api_calls = self._scrape_stock(stock)
+                contracts_count, api_calls, source_used = self._scrape_stock(stock)
                 metrics.total_api_requests += api_calls
                 metrics.successful_stocks += 1
                 metrics.total_contracts += contracts_count
-                logger.info(f"✓ {stock.ticker}: {contracts_count} contracts scraped")
+                completed_list.append(stock.ticker)
+                
+                # Log successful stock scrape
+                stock_log_entry = ScraperStockLog(
+                    run_id=scraper_run.id,
+                    ticker=stock.ticker,
+                    status=StockScrapeStatus.success,
+                    source_used=source_used,
+                    contracts_scraped=contracts_count,
+                    timestamp=datetime.now()
+                )
+                self.db.add(stock_log_entry)
+                
+                logger.info(f"✓ {stock.ticker}: {contracts_count} contracts scraped (source: {source_used})")
             
             except Exception as e:
                 metrics.failed_stocks += 1
                 error_msg = str(e)
                 metrics.stock_errors.append({'ticker': stock.ticker, 'error': error_msg})
+                failed_list.append(stock.ticker)
+                
+                # Log failed stock scrape
+                stock_log_entry = ScraperStockLog(
+                    run_id=scraper_run.id,
+                    ticker=stock.ticker,
+                    status=StockScrapeStatus.failed,
+                    error_message=error_msg,
+                    timestamp=datetime.now()
+                )
+                self.db.add(stock_log_entry)
+                
                 logger.error(f"✗ {stock.ticker}: Failed - {error_msg}", exc_info=True)
                 
                 # Continue with remaining stocks (don't stop entire run)
                 continue
+            
+            finally:
+                # Update progress after each stock
+                update_scraper_progress(
+                    completed_stocks=len(completed_list) + len(failed_list),
+                    completed_stock_list=completed_list,
+                    failed_stocks=failed_list
+                )
+                # Commit stock log entry
+                if stock_log_entry:
+                    self.db.commit()
         
         metrics.end_time = datetime.now()
+        
+        # Update scraper run record
+        scraper_run.end_time = metrics.end_time
+        scraper_run.status = RunStatus.completed
+        scraper_run.successful_stocks = metrics.successful_stocks
+        scraper_run.failed_stocks = metrics.failed_stocks
+        scraper_run.total_contracts = metrics.total_contracts
+        self.db.commit()
+        
+        # Clear progress after completion
+        update_scraper_progress(
+            is_running=False,
+            current_stock=None,
+            pending_stocks=[]
+        )
         
         # Check rate limit compliance (Yahoo: 60/min, 360/hour, 8000/day)
         duration_minutes = metrics.duration_seconds() / 60 if metrics.duration_seconds() else 1
@@ -152,17 +244,15 @@ class YahooFinanceScraper:
         Get all active stocks from watchlist.
         
         Returns:
-            List of Stock objects with monitoring_status='active'
+            List of Stock objects with status='active'
         """
         return (
             self.db.query(Stock)
-            .join(Watchlist, Stock.stock_id == Watchlist.stock_id)
-            .filter(Watchlist.monitoring_status == MonitoringStatus.active)
             .filter(Stock.status == StockStatus.active)
             .all()
         )
     
-    def _scrape_stock(self, stock: Stock) -> Tuple[int, int]:
+    def _scrape_stock(self, stock: Stock) -> Tuple[int, int, str]:
         """
         Scrape options chain for a single stock.
         
@@ -170,36 +260,30 @@ class YahooFinanceScraper:
             stock: Stock object to scrape
         
         Returns:
-            Number of contracts scraped
+            Tuple of (contracts_count, api_calls, source_used)
         
         Raises:
             Exception: If scraping fails
         """
+        from .stock_price_service import get_stock_price_service
+        from ..services.scheduler import update_scraper_progress
+        
         ticker_obj = yf.Ticker(stock.ticker)
         
-        # Get current stock price using fast_info (more reliable in yfinance 0.2.66+)
+        # Get current stock price using multi-source service
         try:
-            # Try fast_info first (preferred method in newer versions)
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    fast_info = ticker_obj.fast_info
-                    current_price = fast_info.get('lastPrice') or fast_info.get('last_price')
-                    if current_price and current_price > 0:
-                        break
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
-                        logger.warning(f"Retry {attempt + 1}/{max_retries} for {stock.ticker} fast_info: {e}")
-                    else:
-                        raise
+            price_service = get_stock_price_service()
+            price_result = price_service.get_price(stock.ticker)
             
-            # Fallback to history if fast_info didn't work
-            if not current_price or current_price <= 0:
-                hist = ticker_obj.history(period="1d")
-                if hist.empty:
-                    raise ValueError(f"No price data available")
-                current_price = float(hist['Close'].iloc[-1])
+            if price_result is None:
+                raise ValueError("All price sources failed, trying database fallback")
+            
+            current_price = price_result["price"]
+            source_used = price_result["source"]
+            
+            # Update progress with current source
+            update_scraper_progress(current_source=source_used)
+            logger.info(f"Using {source_used} for {stock.ticker}: ${current_price:.2f}")
             
             if not current_price or current_price <= 0:
                 raise ValueError(f"Invalid price: {current_price}")
@@ -237,6 +321,8 @@ class YahooFinanceScraper:
         collection_timestamp = datetime.now()
         contracts_count = 0
         api_calls = 2  # 1 for price, 1 for expirations list
+        
+        # source_used is already set above when fetching price
         
         # Iterate through each expiration date
         for expiration_str in expirations:
@@ -287,7 +373,7 @@ class YahooFinanceScraper:
         self.db.commit()
         
         logger.info(f"Scraped {contracts_count} contracts for {stock.ticker} ({api_calls} API calls)")
-        return contracts_count, api_calls
+        return contracts_count, api_calls, source_used
     
     def _process_options_dataframe(
         self,

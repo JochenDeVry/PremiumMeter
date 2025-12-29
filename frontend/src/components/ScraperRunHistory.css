@@ -1,0 +1,283 @@
+.scraper-run-history {
+  margin-top: 32px;
+  padding: 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.scraper-run-history h2 {
+  margin: 0 0 16px 0;
+  color: #1a1a1a;
+  font-size: 20px;
+}
+
+.refresh-button {
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.run-history-loading,
+.run-history-error,
+.run-history-empty {
+  padding: 32px;
+  text-align: center;
+  color: #666;
+}
+
+.run-history-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.run-history-error {
+  color: #ef4444;
+  background: #fee2e2;
+  border-radius: 4px;
+}
+
+.runs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.run-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.run-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.run-card.status-completed {
+  border-left: 4px solid #10b981;
+}
+
+.run-card.status-running {
+  border-left: 4px solid #f59e0b;
+}
+
+.run-card.status-failed {
+  border-left: 4px solid #ef4444;
+}
+
+.run-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  cursor: pointer;
+  background: #f9fafb;
+}
+
+.run-header:hover {
+  background: #f3f4f6;
+}
+
+.run-header-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.run-status-icon {
+  font-size: 24px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.run-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.run-time {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 15px;
+}
+
+.run-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.stat-success {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.stat-failed {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.stat-duration {
+  color: #6b7280;
+}
+
+.stat-contracts {
+  color: #6b7280;
+}
+
+.expand-button {
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 14px;
+  transition: color 0.2s;
+}
+
+.expand-button:hover {
+  color: #1a1a1a;
+}
+
+.run-details {
+  padding: 16px;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+}
+
+.stock-logs-section {
+  margin-bottom: 16px;
+}
+
+.stock-logs-section:last-child {
+  margin-bottom: 0;
+}
+
+.stock-logs-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.stock-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stock-log {
+  display: grid;
+  grid-template-columns: 80px 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.stock-log.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.stock-log.failed {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  grid-template-columns: 80px 1fr auto;
+}
+
+.log-ticker {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  color: #1a1a1a;
+}
+
+.log-source {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.log-contracts {
+  color: #059669;
+  font-weight: 500;
+}
+
+.log-time {
+  color: #9ca3af;
+  font-size: 12px;
+  text-align: right;
+}
+
+.log-error {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  color: #991b1b;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .scraper-run-history {
+    background: #1f2937;
+    color: #f3f4f6;
+  }
+
+  .scraper-run-history h2 {
+    color: #f3f4f6;
+  }
+
+  .run-card {
+    border-color: #374151;
+  }
+
+  .run-header {
+    background: #111827;
+  }
+
+  .run-header:hover {
+    background: #1f2937;
+  }
+
+  .run-time {
+    color: #f3f4f6;
+  }
+
+  .run-details {
+    background: #1f2937;
+    border-top-color: #374151;
+  }
+
+  .stock-logs-section h4 {
+    color: #e5e7eb;
+  }
+
+  .stock-log.success {
+    background: #064e3b;
+    border-color: #065f46;
+  }
+
+  .stock-log.failed {
+    background: #7f1d1d;
+    border-color: #991b1b;
+  }
+
+  .log-ticker {
+    color: #f3f4f6;
+  }
+
+  .log-error {
+    background: #450a0a;
+    color: #fca5a5;
+  }
+}

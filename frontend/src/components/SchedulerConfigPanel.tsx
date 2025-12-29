@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import type { SchedulerConfig, SchedulerConfigRequest, RateLimitCalculation } from '../types/api';
+import { SchedulerStatus } from '../types/api';
 import apiClient from '../services/api';
+import { ScraperProgressMonitor } from './ScraperProgressMonitor';
 import './SchedulerConfigPanel.css';
 
 interface Props {
   initialConfig: SchedulerConfig;
   onConfigUpdated: (config: SchedulerConfig) => void;
   onPause: () => Promise<void>;
-  onResume: () => Promise<void>;
+  onResume: (startNow?: boolean) => Promise<void>;
 }
 
 export const SchedulerConfigPanel: React.FC<Props> = ({
@@ -22,6 +24,7 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [startNow, setStartNow] = useState(false);
 
   // Recalculate rates when config changes
   useEffect(() => {
@@ -97,6 +100,9 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
 
       {error && <div className="error-message">{error}</div>}
 
+      {/* Scraper Progress Monitor */}
+      <ScraperProgressMonitor />
+
       <div className="config-sections">
         {/* Status Section */}
         <div className="config-section">
@@ -107,14 +113,48 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
               {config.status.toUpperCase()}
             </span>
           </div>
+          {config.next_run && (
+            <div className="config-row">
+              <span className="config-label">Next Scheduled Run:</span>
+              <span className="config-value next-run-highlight">
+                {new Date(config.next_run).toLocaleString()}
+              </span>
+            </div>
+          )}
+          {config.status === 'active' && !config.next_run && (
+            <div className="config-row">
+              <span className="config-label status-info">
+                Scheduler is active and waiting to determine next run time
+              </span>
+            </div>
+          )}
           <div className="button-group">
-            {config.status === 'active' ? (
-              <button onClick={onPause} className="button button-warning">
-                Pause Scheduler
-              </button>
+            {config.status === SchedulerStatus.PAUSED ? (
+              <>
+                <div className="start-controls">
+                  <button 
+                    onClick={() => onResume(startNow)} 
+                    className="button button-success"
+                  >
+                    Start Scheduler
+                  </button>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={startNow}
+                      onChange={(e) => setStartNow(e.target.checked)}
+                    />
+                    Start now
+                  </label>
+                </div>
+              </>
             ) : (
-              <button onClick={onResume} className="button button-success">
-                Start Scheduler
+              <button 
+                onClick={onPause} 
+                className="button button-warning"
+                disabled={config.status === SchedulerStatus.RUNNING}
+              >
+                Pause Scheduler
               </button>
             )}
           </div>
@@ -291,14 +331,6 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
             <span className="config-label">Timezone:</span>
             <span className="config-value">{config.timezone}</span>
           </div>
-          {config.next_run && (
-            <div className="config-row">
-              <span className="config-label">Next Run:</span>
-              <span className="config-value">
-                {new Date(config.next_run).toLocaleString()}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 

@@ -111,9 +111,9 @@ class PremiumQueryRequest(BaseSchema):
     # Time range
     lookback_days: Optional[int] = Field(
         default=30,
-        description="How many days back to query",
+        description="How many days back to query (use large value like 3650 for entire database)",
         ge=1,
-        le=365
+        le=3650
     )
     
     @field_validator('strike_price')
@@ -220,6 +220,18 @@ class RemoveStockRequest(BaseSchema):
     ticker: str = Field(..., description="Stock ticker symbol", min_length=1, max_length=10)
 
 
+class UpdateStockStatusRequest(BaseSchema):
+    """Request to update stock status (activate/deactivate)"""
+    ticker: str = Field(..., description="Stock ticker symbol", min_length=1, max_length=10)
+    status: str = Field(..., description="New status (active/inactive)")
+
+
+class BulkStockActionRequest(BaseSchema):
+    """Request to perform bulk action on multiple stocks"""
+    tickers: List[str] = Field(..., description="List of stock ticker symbols", min_length=1)
+    action: str = Field(..., description="Action to perform: activate, deactivate, or remove")
+
+
 # ============================================================================
 # Scheduler Schemas
 # ============================================================================
@@ -232,7 +244,7 @@ class SchedulerConfig(BaseSchema):
     timezone: str = Field(..., description="Timezone for market hours")
     exclude_weekends: bool = Field(..., description="Whether to exclude weekends")
     exclude_holidays: bool = Field(..., description="Whether to exclude holidays")
-    status: MonitoringStatus = Field(..., description="Scheduler status")
+    status: SchedulerStatus = Field(..., description="Scheduler status")
     next_run: Optional[str] = Field(None, description="Next scheduled run time")
     last_run: Optional[str] = Field(None, description="Last run time")
     stock_delay_seconds: int = Field(..., description="Delay between scraping stocks (seconds)", ge=0)
@@ -249,6 +261,20 @@ class SchedulerConfigRequest(BaseSchema):
     exclude_holidays: Optional[bool] = Field(None, description="Whether to exclude holidays")
     stock_delay_seconds: Optional[int] = Field(None, description="Delay between scraping stocks (seconds)", ge=0, le=300)
     max_expirations: Optional[int] = Field(None, description="Maximum number of option expirations per stock", ge=1, le=100)
+
+
+class ScraperProgress(BaseSchema):
+    """Current scraper progress"""
+    is_running: bool = Field(..., description="Whether scraper is currently running")
+    total_stocks: int = Field(..., description="Total number of stocks to scrape")
+    completed_stocks: int = Field(..., description="Number of stocks completed")
+    current_stock: Optional[str] = Field(None, description="Currently scraping stock ticker")
+    current_source: Optional[str] = Field(None, description="Current data source being used")
+    pending_stocks: List[str] = Field(default_factory=list, description="Stocks pending to be scraped")
+    completed_stock_list: List[str] = Field(default_factory=list, description="Stocks that have been scraped")
+    failed_stocks: List[str] = Field(default_factory=list, description="Stocks that failed")
+    start_time: Optional[str] = Field(None, description="Scrape start timestamp")
+    estimated_completion: Optional[str] = Field(None, description="Estimated completion time")
 
 
 class RateLimitCalculation(BaseSchema):
@@ -269,6 +295,39 @@ class RateLimitCalculation(BaseSchema):
 
 
 # ============================================================================
+# Scraper Run Log Schemas
+# ============================================================================
+
+class StockScrapeLogSchema(BaseSchema):
+    """Log entry for a single stock scrape"""
+    ticker: str = Field(..., description="Stock ticker symbol")
+    status: str = Field(..., description="success or failed")
+    source_used: Optional[str] = Field(None, description="Data source used")
+    contracts_scraped: Optional[int] = Field(None, description="Number of contracts scraped")
+    timestamp: str = Field(..., description="Timestamp of scrape")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+
+
+class ScraperRunSchema(BaseSchema):
+    """Complete scraper run record"""
+    id: int = Field(..., description="Run ID")
+    start_time: str = Field(..., description="Run start timestamp")
+    end_time: Optional[str] = Field(None, description="Run end timestamp")
+    status: str = Field(..., description="running, completed, or failed")
+    total_stocks: int = Field(..., description="Total stocks to scrape")
+    successful_stocks: int = Field(..., description="Successfully scraped stocks")
+    failed_stocks: int = Field(..., description="Failed stock scrapes")
+    total_contracts: int = Field(..., description="Total contracts scraped")
+    stock_logs: List[StockScrapeLogSchema] = Field(default_factory=list, description="Individual stock logs")
+
+
+class ScraperRunHistoryResponse(BaseSchema):
+    """Response with scraper run history"""
+    runs: List[ScraperRunSchema] = Field(..., description="List of scraper runs")
+    total_count: int = Field(..., description="Total number of runs")
+
+
+# ============================================================================
 # Common Response Schemas
 # ============================================================================
 
@@ -286,6 +345,16 @@ __all__ = [
     "MonitoringStatus",
     "SchedulerStatus",
     "PremiumQueryRequest",
+    "GreeksAverage",
+    "PremiumResult",
+    "PremiumQueryResponse",
+    "WatchlistStock",
+    "WatchlistResponse",
+    "AddStockRequest",
+    "RemoveStockRequest",
+    "UpdateStockStatusRequest",
+    "BulkStockActionRequest",
+    "PremiumQueryRequest",
     "PremiumStatistics",
     "PremiumQueryResponse",
     "WatchlistStock",
@@ -294,5 +363,10 @@ __all__ = [
     "RemoveStockRequest",
     "SchedulerConfig",
     "SchedulerConfigRequest",
+    "ScraperProgress",
+    "RateLimitCalculation",
+    "StockScrapeLogSchema",
+    "ScraperRunSchema",
+    "ScraperRunHistoryResponse",
     "SuccessResponse"
 ]
