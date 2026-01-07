@@ -148,6 +148,7 @@ class PremiumQueryRequest(BaseSchema):
 class PremiumStatistics(BaseSchema):
     """Statistical summary for a specific strike price"""
     strike_price: Decimal = Field(..., description="Strike price")
+    duration_days: int = Field(..., description="Duration in days to expiry")
     
     # Premium statistics
     min_premium: Decimal = Field(..., description="Minimum premium observed")
@@ -173,6 +174,7 @@ class PremiumQueryResponse(BaseSchema):
     ticker: str = Field(..., description="Stock ticker queried")
     option_type: str = Field(..., description="Option type queried")
     query_timestamp: datetime = Field(default_factory=datetime.utcnow, description="When query was executed")
+    current_stock_price: Optional[Decimal] = Field(None, description="Current stock price at query time")
     
     # Query parameters echoed back
     strike_mode: str = Field(..., description="Strike matching mode used")

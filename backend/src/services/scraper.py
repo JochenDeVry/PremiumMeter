@@ -273,7 +273,7 @@ class YahooFinanceScraper:
         # Get current stock price using multi-source service
         try:
             price_service = get_stock_price_service()
-            price_result = price_service.get_price(stock.ticker)
+            price_result = price_service.get_live_price(stock.ticker)
             
             if price_result is None:
                 raise ValueError("All price sources failed, trying database fallback")
