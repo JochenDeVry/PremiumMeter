@@ -5,6 +5,7 @@ services:
   db:
     image: timescale/timescaledb:latest-pg15
     container_name: premiummeter_db
+    command: -p 5433
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-premiummeter}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -14,7 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -p 5433"]
       interval: 10s
       timeout: 5s
       retries: 5
