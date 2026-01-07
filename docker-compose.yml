@@ -30,7 +30,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-premiummeter}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-premiummeter}
       API_HOST: ${API_HOST:-0.0.0.0}
-      API_PORT: ${API_PORT:-8060}
+      API_PORT: ${API_PORT:-8000}
       SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       POLLING_INTERVAL_MINUTES: ${POLLING_INTERVAL_MINUTES:-5}
@@ -39,13 +39,13 @@ services:
       DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/New_York}
       RISK_FREE_RATE: ${RISK_FREE_RATE:-0.045}
     ports:
-      - "${API_PORT:-8060}:8060"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8060 --reload
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - premiummeter_network
 
