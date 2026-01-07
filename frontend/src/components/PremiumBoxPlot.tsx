@@ -13,6 +13,7 @@ interface PremiumBoxPlotProps {
   optionType: string;
   strikePrice: number;
   durationDays: number;
+  currentStockPrice?: number;
   dataPoints: DataPoint[];
   stockPriceRange: {
     min: number;
@@ -26,6 +27,7 @@ const PremiumBoxPlot: React.FC<PremiumBoxPlotProps> = ({
   optionType,
   strikePrice,
   durationDays,
+  currentStockPrice,
   dataPoints,
   stockPriceRange,
 }) => {
@@ -101,13 +103,20 @@ const PremiumBoxPlot: React.FC<PremiumBoxPlotProps> = ({
   return (
     <div className="box-plot-container">
       <div className="box-plot-header">
-        <h3>
-          Premium vs Stock Price Box Plot
-        </h3>
+        <div className="box-plot-title-row">
+          <h3>
+            Premium vs Stock Price Box Plot - Strike: <strong>${strikePrice.toFixed(2)}</strong>
+          </h3>
+          {currentStockPrice && (
+            <div className="current-price-badge">
+              <span className="price-label">Current Price</span>
+              <span className="price-value">${currentStockPrice.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
         <div className="box-plot-info">
           <span className="ticker-badge">{ticker}</span>
           <span>{optionType.toUpperCase()}</span>
-          <span>Strike: ${strikePrice.toFixed(2)}</span>
           <span>{durationDays} days</span>
         </div>
       </div>

@@ -98,7 +98,18 @@ class QueryService:
             raise ValueError(f"Invalid strike_mode: {request.strike_mode}")
         
         # Get aggregated statistics for each strike
-        statistics = self._aggregate_statistics(base_query, strike_prices)
+        statistics = self._aggregate_statistics(base_query, strike_prices, request.duration_days)
+        
+        # Get current stock price
+        current_stock_price = None
+        try:
+            from .stock_price_service import get_stock_price_service
+            price_service = get_stock_price_service()
+            price_result = price_service.get_live_price(request.ticker.upper())
+            if price_result:
+                current_stock_price = Decimal(str(price_result["price"]))
+        except Exception as e:
+            logger.warning(f"Could not fetch current stock price for {request.ticker}: {e}")
         
         # Build response
         return PremiumQueryResponse(
@@ -107,6 +118,7 @@ class QueryService:
             strike_mode=request.strike_mode.value,
             duration_days=request.duration_days,
             lookback_days=request.lookback_days,
+            current_stock_price=current_stock_price,
             results=statistics,
             total_strikes=len(statistics),
             total_data_points=sum(s.data_points for s in statistics)
@@ -190,7 +202,8 @@ class QueryService:
     def _aggregate_statistics(
         self,
         base_query,
-        strike_prices: List[Decimal]
+        strike_prices: List[Decimal],
+        duration_days: int
     ) -> List[PremiumStatistics]:
         """
         Aggregate premium statistics for each strike price.
@@ -249,6 +262,7 @@ class QueryService:
             last_seen = max(timestamps)
             
             statistics.append(PremiumStatistics(
+                duration_days=duration_days,
                 strike_price=strike_price,
                 min_premium=min_premium,
                 max_premium=max_premium,

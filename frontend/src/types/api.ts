@@ -79,6 +79,7 @@ export interface PremiumQueryResponse {
   ticker: string;
   option_type: OptionType;
   query_timestamp: string;
+  current_stock_price?: number;
   results: PremiumResult[];
 }
 

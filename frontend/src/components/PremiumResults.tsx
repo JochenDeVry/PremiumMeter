@@ -200,7 +200,15 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
   return (
     <div className="results-container">
       <div className="results-header">
-        <h3>Premium Statistics</h3>
+        <div className="results-title-row">
+          <h3>Premium Statistics</h3>
+          {response.current_stock_price && (
+            <div className="current-price-badge">
+              <span className="price-label">Current Price</span>
+              <span className="price-value">${response.current_stock_price.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
         <div className="results-meta">
           <span><strong>Ticker:</strong> {response.ticker}</span>
           <span><strong>Type:</strong> {response.option_type.toUpperCase()}</span>
@@ -330,6 +338,7 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
           optionType={boxPlotData.optionType}
           strikePrice={boxPlotData.strikePrice}
           durationDays={boxPlotData.durationDays}
+          currentStockPrice={response?.current_stock_price}
           dataPoints={boxPlotData.dataPoints}
           stockPriceRange={boxPlotData.stockPriceRange}
         />
