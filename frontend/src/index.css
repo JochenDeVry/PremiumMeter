@@ -54,7 +54,7 @@ body {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 75%;
   margin: 0 auto;
   padding: 0 1rem;
 }
@@ -67,7 +67,7 @@ body {
 }
 
 .nav-container {
-  max-width: 1200px;
+  max-width: 75%;
   margin: 0 auto;
   padding: 0 1rem;
   display: flex;
@@ -1309,4 +1309,23 @@ body {
   .styled-select {
     background-color: white;
   }
+}
+
+/* Watchlist Overview Card */
+.watchlist-overview-card {
+  margin-top: 32px;
+  padding: 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.watchlist-overview-card h2 {
+  margin: 0 0 20px 0;
+  color: #1a1a1a;
+  font-size: 20px;
+}
+
+.watchlist-overview-card .watchlist-controls {
+  margin-bottom: 16px;
 }

@@ -310,7 +310,8 @@ const AdminPage: React.FC = () => {
       {/* Scraper Run History */}
       <ScraperRunHistory />
 
-      <section className="section">
+      {/* Watchlist Overview */}
+      <div className="watchlist-overview-card">
         <h2>Watchlist Overview</h2>
         {watchlist ? (
           <div>
@@ -656,7 +657,7 @@ const AdminPage: React.FC = () => {
         ) : (
           <p>Watchlist data not available</p>
         )}
-      </section>
+      </div>
 
       <section className="section">
         <h2>System Information</h2>

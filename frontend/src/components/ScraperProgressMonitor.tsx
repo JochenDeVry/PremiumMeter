@@ -59,9 +59,21 @@ export const ScraperProgressMonitor: React.FC = () => {
 
       {progress.start_time && (
         <div className="progress-time">
-          <span>Started: {new Date(progress.start_time).toLocaleTimeString()}</span>
+          <span>Started: {new Date(progress.start_time).toLocaleTimeString('en-GB', {
+            timeZone: 'Europe/Brussels',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          })}</span>
           {progress.estimated_completion && (
-            <span>ETA: {new Date(progress.estimated_completion).toLocaleTimeString()}</span>
+            <span>ETA: {new Date(progress.estimated_completion).toLocaleTimeString('en-GB', {
+              timeZone: 'Europe/Brussels',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false
+            })}</span>
           )}
         </div>
       )}

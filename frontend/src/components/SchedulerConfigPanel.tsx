@@ -25,6 +25,7 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startNow, setStartNow] = useState(false);
+  const [showBrusselsTime, setShowBrusselsTime] = useState(true);
 
   // Recalculate rates when config changes
   useEffect(() => {
@@ -85,6 +86,35 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
     return within ? 'rate-ok' : 'rate-warning';
   };
 
+  const convertTimeToTimezone = (time: string, fromTz: string, toTz: string) => {
+    // Create a date in the source timezone
+    const today = new Date().toISOString().split('T')[0];
+    const dateString = `${today}T${time}`;
+    
+    // Parse in source timezone
+    const sourceDate = new Date(dateString + 'Z'); // Treat as UTC first
+    
+    // Convert New York time to Brussels
+    // NY is typically UTC-5 (EST) or UTC-4 (EDT)
+    // Brussels is UTC+1 (CET) or UTC+2 (CEST)
+    // Difference is typically 6 hours (Brussels ahead)
+    const [hours, minutes, seconds] = time.split(':').map(Number);
+    const brusselsHours = (hours + 6) % 24; // Simple conversion, add 6 hours
+    
+    return `${brusselsHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds?.toString().padStart(2, '0') || '00'}`;
+  };
+
+  const displayMarketHours = () => {
+    if (showBrusselsTime) {
+      const startBrussels = convertTimeToTimezone(config.market_hours_start, 'America/New_York', 'Europe/Brussels');
+      const endBrussels = convertTimeToTimezone(config.market_hours_end, 'America/New_York', 'Europe/Brussels');
+      return { start: startBrussels, end: endBrussels, tz: 'Europe/Brussels (CET/CEST)' };
+    }
+    return { start: config.market_hours_start, end: config.market_hours_end, tz: config.timezone };
+  };
+
+  const marketHours = displayMarketHours();
+
   return (
     <div className="scheduler-config-panel">
       <div className="panel-header">
@@ -103,9 +133,9 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
       {/* Scraper Progress Monitor */}
       <ScraperProgressMonitor />
 
-      <div className="config-sections">
-        {/* Status Section */}
-        <div className="config-section">
+      <div className="config-sections config-grid">
+        {/* Top Left: Status Section */}
+        <div className="config-section status-section">
           <h3>Status</h3>
           <div className="config-row">
             <span className="config-label">Current Status:</span>
@@ -117,7 +147,16 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
             <div className="config-row">
               <span className="config-label">Next Scheduled Run:</span>
               <span className="config-value next-run-highlight">
-                {new Date(config.next_run).toLocaleString()}
+                {new Date(config.next_run).toLocaleString('en-GB', {
+                  timeZone: 'Europe/Brussels',
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: false
+                })}
               </span>
             </div>
           )}
@@ -160,8 +199,38 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Scraper Settings */}
-        <div className="config-section">
+        {/* Top Right: Market Hours (Read-Only) */}
+        <div className="config-section market-hours-section">
+          <div className="section-header-with-toggle">
+            <h3>Market Hours</h3>
+            <button 
+              onClick={() => setShowBrusselsTime(!showBrusselsTime)}
+              className="button button-small timezone-toggle"
+              title="Switch timezone view"
+            >
+              🔄 {showBrusselsTime ? '🇧🇪 Brussels' : '🇺🇸 New York'}
+            </button>
+          </div>
+          <div className="config-row">
+            <span className="config-label">Trading Hours:</span>
+            <span className="config-value">
+              {marketHours.start} - {marketHours.end}
+            </span>
+          </div>
+          <div className="config-row">
+            <span className="config-label">Timezone:</span>
+            <span className="config-value">{marketHours.tz}</span>
+          </div>
+          <div className="config-row info-text">
+            <span className="config-note">
+              ⓘ Market hours are set to US stock market trading hours. 
+              Times shown are approximate and may vary during daylight saving transitions.
+            </span>
+          </div>
+        </div>
+
+        {/* Bottom Left: Scraper Settings */}
+        <div className="config-section scraper-settings-section">
           <h3>Scraper Settings</h3>
           
           <div className="config-row">
@@ -259,9 +328,9 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Rate Limit Calculation */}
+        {/* Bottom Right: Rate Limit Calculation */}
         {rateCalc && (
-          <div className="config-section">
+          <div className="config-section api-usage-section">
             <h3>Expected API Usage</h3>
             
             <div className="rate-summary">
@@ -318,20 +387,7 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Market Hours (Read-Only) */}
-        <div className="config-section">
-          <h3>Market Hours</h3>
-          <div className="config-row">
-            <span className="config-label">Trading Hours:</span>
-            <span className="config-value">
-              {config.market_hours_start} - {config.market_hours_end}
-            </span>
-          </div>
-          <div className="config-row">
-            <span className="config-label">Timezone:</span>
-            <span className="config-value">{config.timezone}</span>
-          </div>
-        </div>
+        {/* Market Hours section removed - now at top right */}
       </div>
 
       {/* Info Modal */}
