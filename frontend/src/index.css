@@ -954,6 +954,15 @@ body {
   min-height: 400px;
 }
 
+/* Premium Statistics Card */
+.premium-statistics-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  margin-top: 24px;
+}
+
 .results-header {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;

@@ -309,6 +309,21 @@ class APIClient {
     const response = await this.client.get<StockDetailsResponse>(`/stocks/${ticker}`);
     return response.data;
   }
+
+  async getIntradayPrices(ticker: string): Promise<{
+    ticker: string;
+    company_name: string;
+    data_points: Array<{
+      timestamp: string;
+      price: number;
+      volume?: number;
+    }>;
+    source: string;
+    date: string;
+  }> {
+    const response = await this.client.get(`/api/intraday/${ticker}`);
+    return response.data;
+  }
 }
 
 // ============================================================================

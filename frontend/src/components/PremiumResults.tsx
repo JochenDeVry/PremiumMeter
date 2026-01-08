@@ -3,6 +3,7 @@ import { PremiumQueryResponse, PremiumResult, PremiumQueryRequest } from '../typ
 import PremiumHistogram from './PremiumHistogram';
 import PremiumBoxPlot from './PremiumBoxPlot';
 import PremiumSurface3D from './PremiumSurface3D';
+import IntradayStockChart from './IntradayStockChart';
 import apiClient from '../services/api';
 
 interface PremiumResultsProps {
@@ -199,44 +200,54 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
 
   return (
     <div className="results-container">
-      <div className="results-header">
-        <div className="results-title-row">
-          <h3>Premium Statistics</h3>
-          {response.current_stock_price && (
-            <div className="current-price-badge">
-              <span className="price-label">Current Price</span>
-              <span className="price-value">${response.current_stock_price.toFixed(2)}</span>
-            </div>
-          )}
-        </div>
-        <div className="results-meta">
-          <span><strong>Ticker:</strong> {response.ticker}</span>
-          <span><strong>Type:</strong> {response.option_type.toUpperCase()}</span>
-          <span><strong>Query Time:</strong> {new Date(response.query_timestamp).toLocaleString()}</span>
-        </div>
-      </div>
+      {/* Intraday Stock Chart Section - Moved to top */}
+      {response && (
+        <IntradayStockChart 
+          ticker={response.ticker}
+          companyName={undefined}
+        />
+      )}
 
-      {response.results.length === 0 ? (
-        <div className="no-results">
-          <p>No premium data found for the specified criteria.</p>
-          <p className="help-text">
-            Try adjusting the strike price, duration tolerance, or lookback period.
-          </p>
+      {/* Premium Statistics Card */}
+      <div className="premium-statistics-card">
+        <div className="results-header">
+          <div className="results-title-row">
+            <h3>Premium Statistics</h3>
+            {response.current_stock_price && (
+              <div className="current-price-badge">
+                <span className="price-label">Current Price</span>
+                <span className="price-value">${response.current_stock_price.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+          <div className="results-meta">
+            <span><strong>Ticker:</strong> {response.ticker}</span>
+            <span><strong>Type:</strong> {response.option_type.toUpperCase()}</span>
+            <span><strong>Query Time:</strong> {new Date(response.query_timestamp).toLocaleString()}</span>
+          </div>
         </div>
-      ) : (
-        <div className="results-table-container">
-          <table className="results-table">
-            <thead>
-              <tr>
-                <th>Strike ($)</th>
-                <th>Duration (days)</th>
-                <th>Data Points</th>
-                <th>Min Premium ($)</th>
-                <th>Avg Premium ($)</th>
-                <th>Max Premium ($)</th>
-                <th>Latest ($)</th>
-                <th>Greeks (Avg)</th>
-                <th>Actions</th>
+
+        {response.results.length === 0 ? (
+          <div className="no-results">
+            <p>No premium data found for the specified criteria.</p>
+            <p className="help-text">
+              Try adjusting the strike price, duration tolerance, or lookback period.
+            </p>
+          </div>
+        ) : (
+          <div className="results-table-container">
+            <table className="results-table">
+              <thead>
+                <tr>
+                  <th>Strike ($)</th>
+                  <th>Duration (days)</th>
+                  <th>Data Points</th>
+                  <th>Min Premium ($)</th>
+                  <th>Avg Premium ($)</th>
+                  <th>Max Premium ($)</th>
+                  <th>Latest ($)</th>
+                  <th>Greeks (Avg)</th>
+                  <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -291,7 +302,9 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
             </button>
           </div>
         </div>
-      )}
+        )}
+      </div>
+      {/* End Premium Statistics Card */}
 
       {/* Histogram Section */}
       {histogramLoading && (
