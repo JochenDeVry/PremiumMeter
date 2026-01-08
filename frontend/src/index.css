@@ -772,6 +772,17 @@ body {
   transition: border-color 0.2s;
 }
 
+/* Date picker styling */
+.date-picker-input {
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+.date-picker-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
@@ -838,6 +849,52 @@ body {
 /* Stock Search Dropdown */
 .stock-search-container {
   position: relative;
+}
+
+.stock-display-selected {
+  width: 100%;
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+  min-height: 42px;
+}
+
+.stock-display-selected:hover {
+  border-color: var(--primary-color);
+  background-color: #f9fafb;
+}
+
+.stock-display-selected .stock-ticker {
+  font-weight: 600;
+  color: var(--primary-color);
+  min-width: 60px;
+  font-size: 1rem;
+}
+
+.stock-display-selected .stock-name {
+  color: #6b7280;
+  font-size: 0.875rem;
+  flex: 1;
+  margin-left: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-display-selected .dropdown-arrow {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #9ca3af;
+  font-size: 0.75rem;
 }
 
 .select-wrapper {

@@ -18,6 +18,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [ticker, setTicker] = useState<string>('AAPL');
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [optionType, setOptionType] = useState<OptionType>(OptionType.PUT);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);  // Track if user is actively searching
@@ -26,10 +27,70 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   const [strikeRangePercent, setStrikeRangePercent] = useState<string>('5');
   const [nearestCountAbove, setNearestCountAbove] = useState<string>('5');
   const [nearestCountBelow, setNearestCountBelow] = useState<string>('5');
+  const [expirationDate, setExpirationDate] = useState<string>('');
   const [durationDays, setDurationDays] = useState<string>('7');
   const [durationToleranceDays, setDurationToleranceDays] = useState<string>('0');
   const [lookbackDays, setLookbackDays] = useState<string>('');  // Empty string means entire database
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
+
+  // Get next N Fridays from today
+  const getUpcomingFridays = (count: number = 20): Array<{ date: string; label: string; days: number }> => {
+    const fridays: Array<{ date: string; label: string; days: number }> = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Find next Friday
+    let current = new Date(today);
+    const dayOfWeek = current.getDay();
+    const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7; // If today is Friday, get next Friday
+    current.setDate(current.getDate() + daysUntilFriday);
+    
+    // Generate next N Fridays
+    for (let i = 0; i < count; i++) {
+      const dateString = current.toISOString().split('T')[0];
+      const diffTime = current.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      const label = current.toLocaleDateString('en-US', { 
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+      });
+      
+      fridays.push({
+        date: dateString,
+        label: `${label} (${diffDays} days until expiry)`,
+        days: diffDays
+      });
+      
+      // Move to next Friday
+      current.setDate(current.getDate() + 7);
+    }
+    
+    return fridays;
+  };
+
+  const [upcomingFridays] = useState(getUpcomingFridays());
+
+  // Initialize with next Friday
+  useEffect(() => {
+    if (upcomingFridays.length > 0) {
+      setExpirationDate(upcomingFridays[0].date);
+      setDurationDays(upcomingFridays[0].days.toString());
+    }
+  }, []);
+
+  // Update duration when date changes
+  const handleDateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const dateString = e.target.value;
+    const selectedFriday = upcomingFridays.find(f => f.date === dateString);
+    
+    if (selectedFriday) {
+      setExpirationDate(dateString);
+      setDurationDays(selectedFriday.days.toString());
+    }
+  };
 
   // Load stocks on component mount
   useEffect(() => {
@@ -38,6 +99,12 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
         const stockList = await apiClient.listAllStocks();
         setStocks(stockList);
         setFilteredStocks(stockList);
+        
+        // Set initial selected stock (AAPL)
+        const initialStock = stockList.find(s => s.ticker === 'AAPL');
+        if (initialStock) {
+          setSelectedStock(initialStock);
+        }
         
         // Fetch initial strike price for default ticker (AAPL)
         fetchStockPrice('AAPL');
@@ -78,7 +145,9 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   }, []);
 
   const handleStockSelect = (selectedTicker: string) => {
+    const stock = stocks.find(s => s.ticker === selectedTicker);
     setTicker(selectedTicker);
+    setSelectedStock(stock || null);
     setSearchTerm(selectedTicker);
     setShowDropdown(false);
     setIsSearching(false);  // Done searching
@@ -150,19 +219,32 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
         <div className="form-group">
           <label htmlFor="ticker">Ticker Symbol</label>
           <div className="stock-search-container" ref={dropdownRef}>
-            <input
-              type="text"
-              id="ticker"
-              value={isSearching ? searchTerm : ticker}
-              onChange={handleSearchChange}
-              onFocus={handleInputFocus}
-              placeholder="Search stocks..."
-              required
-              disabled={loading}
-              autoComplete="off"
-              className="stock-search-input"
-            />
-            <span className="dropdown-arrow">▼</span>
+            {!isSearching && selectedStock ? (
+              <div 
+                className="stock-display-selected"
+                onClick={handleInputFocus}
+              >
+                <span className="stock-ticker">{selectedStock.ticker}</span>
+                <span className="stock-name">{selectedStock.company_name}</span>
+                <span className="dropdown-arrow">▼</span>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  id="ticker"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  onFocus={handleInputFocus}
+                  placeholder="Search stocks..."
+                  required
+                  disabled={loading}
+                  autoComplete="off"
+                  className="stock-search-input"
+                />
+                <span className="dropdown-arrow">▼</span>
+              </>
+            )}
             {showDropdown && filteredStocks.length > 0 && (
               <div className="stock-dropdown">
                 {filteredStocks.slice(0, 10).map((stock) => (
@@ -183,7 +265,6 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
               </div>
             )}
           </div>
-          <small className="form-help">Selected: {ticker}</small>
         </div>
 
         <div className="form-group">
@@ -301,17 +382,24 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
         <h3>Expiration & Time Window</h3>
         
         <div className="form-group">
-          <label htmlFor="durationDays">Expiration (days)</label>
-          <input
-            type="number"
-            id="durationDays"
-            value={durationDays}
-            onChange={(e) => setDurationDays(e.target.value)}
-            min="1"
-            required
-            disabled={loading}
-          />
-          <small className="form-help">Days to expiration (e.g., 30 for ~1 month)</small>
+          <label htmlFor="expirationDate">Expiration Date</label>
+          <div className="select-wrapper">
+            <select
+              id="expirationDate"
+              value={expirationDate}
+              onChange={handleDateChange}
+              required
+              disabled={loading}
+              className="styled-select"
+            >
+              {upcomingFridays.map((friday) => (
+                <option key={friday.date} value={friday.date}>
+                  {friday.label}
+                </option>
+              ))}
+            </select>
+            <span className="dropdown-arrow">▼</span>
+          </div>
         </div>
 
         {/* Advanced Settings Section */}
