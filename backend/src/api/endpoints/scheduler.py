@@ -304,6 +304,10 @@ async def calculate_rate_limits(
             recommended_interval = int((requests_per_cycle * 60) / 360) if requests_per_cycle > 0 else interval
             warnings.append(f"Recommendation: Increase interval to {recommended_interval}+ minutes or reduce watchlist")
         
+        # Check if counter needs reset and get current values
+        config.check_and_reset_daily_counter()
+        db.commit()
+        
         return RateLimitCalculation(
             watchlist_size=watchlist_size,
             requests_per_stock=requests_per_stock,
@@ -317,7 +321,9 @@ async def calculate_rate_limits(
             within_minute_limit=within_minute_limit,
             within_hour_limit=within_hour_limit,
             within_day_limit=within_day_limit,
-            warnings=warnings
+            warnings=warnings,
+            actual_queries_today=config.daily_api_queries,
+            last_reset_time=config.last_reset_date.isoformat() if config.last_reset_date else None
         )
     
     except HTTPException:

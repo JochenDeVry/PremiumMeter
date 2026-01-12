@@ -231,6 +231,8 @@ export interface RateLimitCalculation {
   within_hour_limit: boolean;
   within_day_limit: boolean;
   warnings: string[];
+  actual_queries_today: number;
+  last_reset_time: string | null;
 }
 
 // ============================================================================

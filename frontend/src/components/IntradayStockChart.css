@@ -1,9 +1,5 @@
 .intraday-chart-container {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 24px;
-  margin-top: 24px;
+  height: 100%;
 }
 
 .intraday-header {
@@ -65,6 +61,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -106,9 +103,24 @@
   color: #374151;
 }
 
-.data-source {
+.fallback-notice {
+  background-color: #fff7ed;
+  border: 1px solid #ffedd5;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  color: #9a3412;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.intraday-chart-container.historical-fallback {
+  border-left: 4px solid #fb923c;
+}
+
+.data-date {
   color: #6b7280;
-  font-style: italic;
+  font-weight: 500;
 }
 
 .chart-wrapper {

@@ -36,6 +36,15 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
     setConfig(initialConfig);
   }, [initialConfig]);
 
+  // Poll rate calculation every 10 seconds to update actual query count
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadRateCalculation();
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(interval);
+  }, [config.polling_interval_minutes, config.stock_delay_seconds, config.max_expirations]);
+
   const loadRateCalculation = async () => {
     try {
       // Pass current config values for real-time calculation
@@ -84,6 +93,16 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
 
   const getRateLimitClass = (within: boolean) => {
     return within ? 'rate-ok' : 'rate-warning';
+  };
+
+  const getQueryPercentage = (actual: number, limit: number) => {
+    return Math.min((actual / limit) * 100, 100);
+  };
+
+  const getPercentageClass = (percentage: number) => {
+    if (percentage >= 90) return 'danger';
+    if (percentage >= 70) return 'warning';
+    return 'ok';
   };
 
   const convertTimeToTimezone = (time: string, fromTz: string, toTz: string) => {
@@ -220,12 +239,6 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
           <div className="config-row">
             <span className="config-label">Timezone:</span>
             <span className="config-value">{marketHours.tz}</span>
-          </div>
-          <div className="config-row info-text">
-            <span className="config-note">
-              ⓘ Market hours are set to US stock market trading hours. 
-              Times shown are approximate and may vary during daylight saving transitions.
-            </span>
           </div>
         </div>
 
@@ -367,10 +380,34 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
               
               <div className={`rate-limit-row ${getRateLimitClass(rateCalc.within_day_limit)}`}>
                 <span className="rate-icon">{getRateLimitStatus(rateCalc.within_day_limit)}</span>
-                <span className="rate-label">Per Day:</span>
+                <span className="rate-label">Per Day (Expected):</span>
                 <span className="rate-value">
                   {rateCalc.requests_per_day} / 8,000
                 </span>
+              </div>
+              
+              <div className="rate-limit-row actual-queries">
+                <span className="rate-icon">📊</span>
+                <span className="rate-label">Actual Queries Today:</span>
+                <span className="rate-value">
+                  {rateCalc.actual_queries_today.toLocaleString()} / 8,000
+                </span>
+              </div>
+              
+              {/* Progress bar for actual queries */}
+              <div className="query-progress-container">
+                <div className="query-progress-label">
+                  <span>Daily Usage</span>
+                  <span className="query-percentage">
+                    {getQueryPercentage(rateCalc.actual_queries_today, 8000).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="query-progress-bar">
+                  <div 
+                    className={`query-progress-fill ${getPercentageClass(getQueryPercentage(rateCalc.actual_queries_today, 8000))}`}
+                    style={{ width: `${getQueryPercentage(rateCalc.actual_queries_today, 8000)}%` }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -382,6 +419,12 @@ export const SchedulerConfigPanel: React.FC<Props> = ({
                     <li key={idx}>{warning}</li>
                   ))}
                 </ul>
+              </div>
+            )}
+            
+            {rateCalc.last_reset_time && (
+              <div className="reset-info">
+                <small>Counter resets daily at 7:30 AM EST (1:30 PM Brussels)</small>
               </div>
             )}
           </div>

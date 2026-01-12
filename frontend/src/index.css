@@ -1011,19 +1011,70 @@ body {
   min-height: 400px;
 }
 
-/* Premium Statistics Card */
-.premium-statistics-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 24px;
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
   margin-top: 24px;
+  align-items: stretch;
+}
+
+/* Dashboard Card - Unified style for all grid items */
+.dashboard-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  border: 1px solid #f3f4f6;
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 968px) {
+  .query-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card States */
+.card-loading,
+.card-error,
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 300px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.card-error {
+  color: #dc2626;
+}
+
+/* Dashboard Layout Utilities */
+.full-width {
+  grid-column: 1 / -1;
 }
 
 .results-header {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .results-title-row {
@@ -1075,6 +1126,78 @@ body {
 
 .results-table-container {
   overflow-x: auto;
+  flex: 1;
+}
+
+/* Results Table Wrapper - Flex container for sidebar + table */
+.results-table-wrapper {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+/* Strike Navigation Sidebar - Left Side */
+.strike-navigation-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1rem 0.5rem;
+  min-width: 80px;
+  min-height: 600px;
+}
+
+.nav-group-top,
+.nav-group-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.strike-nav-button {
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 50px;
+  min-height: 40px;
+  box-shadow: 0 2px 4px rgba(100, 108, 255, 0.3);
+}
+
+.strike-nav-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(100, 108, 255, 0.4);
+  background: linear-gradient(135deg, #535bf2 0%, #646cff 100%);
+}
+
+.strike-nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: #4a4a4a;
+  box-shadow: none;
+}
+
+.strike-nav-arrow {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.strike-range-indicator {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+  line-height: 1.4;
+  padding: 0.5rem 0;
 }
 
 .results-table {
@@ -1104,6 +1227,7 @@ body {
 
 .results-table tr:hover {
   background-color: #2a2a2a;
+  cursor: pointer;
 }
 
 .results-table .numeric {
@@ -1202,6 +1326,12 @@ body {
 .results-table .selected-row {
   background-color: rgba(102, 126, 234, 0.15);
   border-left: 3px solid #667eea;
+}
+
+.results-table .reference-strike-row {
+  background-color: rgba(251, 192, 45, 0.15);
+  /* Subtle gold highlight */
+  border-left: 3px solid #fbc02d;
 }
 
 .histogram-loading,
@@ -1317,6 +1447,7 @@ body {
 
 /* Light mode overrides for query components */
 @media (prefers-color-scheme: light) {
+
   .form-group input,
   .form-group select {
     background-color: white;
@@ -1343,6 +1474,10 @@ body {
     background-color: #f5f5f5;
   }
 
+  .results-table .reference-strike-row {
+    background-color: rgba(251, 192, 45, 0.25);
+  }
+
   .results-summary {
     color: rgba(0, 0, 0, 0.7);
   }
@@ -1352,6 +1487,7 @@ body {
   .dropdown-arrow {
     color: rgba(0, 0, 0, 0.5);
   }
+
   .no-results {
     color: rgba(0, 0, 0, 0.5);
   }
@@ -1374,6 +1510,20 @@ body {
 
   .styled-select {
     background-color: white;
+  }
+
+  /* Strike navigation sidebar light mode */
+  .strike-navigation-sidebar {
+    background-color: transparent;
+    border: none;
+  }
+
+  .strike-range-indicator {
+    color: rgba(0, 0, 0, 0.8);
+  }
+
+  .strike-nav-button:disabled {
+    background: #d1d5db;
   }
 }
 

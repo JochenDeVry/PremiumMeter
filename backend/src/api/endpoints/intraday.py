@@ -158,41 +158,46 @@ def fetch_finnhub_intraday(ticker: str) -> Optional[IntradayResponse]:
 
 
 def fetch_yfinance_intraday(ticker: str) -> Optional[IntradayResponse]:
-    """Fetch intraday data from Yahoo Finance (5-minute intervals) as fallback"""
+    """Fetch intraday data from Yahoo Finance (5-minute intervals) as fallback.
+    If today's data is empty, it falls back to the most recent trading day with data.
+    """
     try:
         yf_ticker = yf.Ticker(ticker.upper())
         
-        # Get today's intraday data with 5-minute intervals
-        hist = yf_ticker.history(period='1d', interval='5m')
+        # Get last 5 days of intraday data with 5-minute intervals to cover weekends/holidays
+        hist = yf_ticker.history(period='5d', interval='5m')
         
         if hist.empty:
             logger.info(f"No intraday data from Yahoo Finance for {ticker}")
             return None
         
+        # Group data by date to find the most recent day with data
+        hist.index = hist.index.tz_convert('UTC')  # Ensure UTC for consistency
+        dates = hist.index.date
+        unique_dates = sorted(list(set(dates)), reverse=True)
+        
+        target_date = None
         data_points = []
-        today = datetime.now().date()
         
-        for timestamp, row in hist.iterrows():
-            # Convert pandas Timestamp to datetime
-            dt = timestamp.to_pydatetime()
-            
-            # Only include today's data
-            if dt.date() != today:
-                continue
-            
-            data_points.append(IntradayDataPoint(
-                timestamp=dt.isoformat(),
-                price=float(row['Close']),
-                volume=int(row['Volume']) if 'Volume' in row and not pd.isna(row['Volume']) else None
-            ))
+        for d in unique_dates:
+            day_data = hist[hist.index.date == d]
+            if not day_data.empty:
+                target_date = d
+                for timestamp, row in day_data.iterrows():
+                    data_points.append(IntradayDataPoint(
+                        timestamp=timestamp.isoformat(),
+                        price=float(row['Close']),
+                        volume=int(row['Volume']) if 'Volume' in row and not pd.isna(row['Volume']) else None
+                    ))
+                break  # Found the most recent day with data
         
-        if data_points:
+        if data_points and target_date:
             return IntradayResponse(
                 ticker=ticker.upper(),
                 company_name="",
                 data_points=data_points,
-                source="Yahoo Finance",
-                date=today.isoformat()
+                source="Yahoo Finance (Historical Fallback)" if target_date != datetime.now().date() else "Yahoo Finance",
+                date=target_date.isoformat()
             )
         
         logger.info(f"No intraday data points found for {ticker} from Yahoo Finance")

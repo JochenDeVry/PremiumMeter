@@ -53,6 +53,88 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
 
   const [show3DSurface, setShow3DSurface] = useState(false);
 
+  // Strike price navigation state
+  const STRIKES_PER_PAGE = 10;
+  const SCROLL_STEP_SMALL = 1;
+  const SCROLL_STEP_LARGE = 3;
+  const [strikeWindowStart, setStrikeWindowStart] = useState(0);
+
+  // Reset window and auto-load charts when response changes
+  React.useEffect(() => {
+    if (response && response.results.length > 0 && queryRequest) {
+      // Find the strike closest to the queried strike price
+      const referenceStrike = queryRequest.strike_price;
+      let closestIndex = 0;
+      let minDiff = Math.abs(response.results[0].strike_price - referenceStrike);
+
+      for (let i = 1; i < response.results.length; i++) {
+        const diff = Math.abs(response.results[i].strike_price - referenceStrike);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIndex = i;
+        }
+      }
+
+      const closestResult = response.results[closestIndex];
+
+      // 1. Auto-center the window if there's navigation
+      if (response.results.length > STRIKES_PER_PAGE) {
+        const idealStart = closestIndex - Math.floor(STRIKES_PER_PAGE / 2);
+        const maxStart = Math.max(0, response.results.length - STRIKES_PER_PAGE);
+        const centerStart = Math.max(0, Math.min(idealStart, maxStart));
+        setStrikeWindowStart(centerStart);
+      } else {
+        setStrikeWindowStart(0);
+      }
+
+      // 2. Auto-load both histogram and box plot for the closest strike
+      fetchHistogramData(closestResult);
+      fetchBoxPlotData(closestResult);
+    } else {
+      setStrikeWindowStart(0);
+    }
+  }, [response, queryRequest]);
+
+  // Navigation handlers
+  const handleScrollUp = (amount: number) => {
+    setStrikeWindowStart(prev => Math.max(0, prev - amount));
+  };
+
+  const handleScrollDown = (amount: number) => {
+    if (!response) return;
+    const maxStart = Math.max(0, response.results.length - STRIKES_PER_PAGE);
+    setStrikeWindowStart(prev => Math.min(maxStart, prev + amount));
+  };
+
+  // Calculate visible results
+  const getVisibleResults = () => {
+    if (!response) return [];
+    return response.results.slice(strikeWindowStart, strikeWindowStart + STRIKES_PER_PAGE);
+  };
+
+  // Check if navigation buttons should be disabled
+  const canScrollUp = strikeWindowStart > 0;
+  const canScrollDown = response ? strikeWindowStart + STRIKES_PER_PAGE < response.results.length : false;
+
+  // Find the closest strike price to highlight
+  const getClosestStrike = () => {
+    if (!response || !queryRequest) return null;
+    const referenceStrike = queryRequest.strike_price;
+    let closest = response.results[0].strike_price;
+    let minDiff = Math.abs(closest - referenceStrike);
+
+    for (const res of response.results) {
+      const diff = Math.abs(res.strike_price - referenceStrike);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = res.strike_price;
+      }
+    }
+    return closest;
+  };
+
+  const closestStrikePrice = getClosestStrike();
+
   const fetchHistogramData = async (result: PremiumResult) => {
     if (!response || !queryRequest) return;
 
@@ -65,9 +147,7 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
 
     try {
       // Extract the actual string value from the enum
-      const optionTypeValue = typeof response.option_type === 'string' 
-        ? response.option_type 
-        : response.option_type.valueOf();
+      const optionTypeValue = (response.option_type as any).toString().toLowerCase();
 
       // Use the original query's parameters
       const durationDays = queryRequest.duration_days || 30;
@@ -112,9 +192,7 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
     setSelectedBoxPlotStrike(result.strike_price);
 
     try {
-      const optionTypeValue = typeof response.option_type === 'string' 
-        ? response.option_type 
-        : response.option_type.valueOf();
+      const optionTypeValue = (response.option_type as any).toString().toLowerCase();
 
       const durationDays = queryRequest.duration_days || 30;
       const durationTolerance = queryRequest.duration_tolerance_days ?? 0;
@@ -200,177 +278,226 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
 
   return (
     <div className="results-container">
-      {/* Intraday Stock Chart Section - Moved to top */}
-      {response && (
-        <IntradayStockChart 
-          ticker={response.ticker}
-          companyName={undefined}
-        />
-      )}
-
-      {/* Premium Statistics Card */}
-      <div className="premium-statistics-card">
-        <div className="results-header">
-          <div className="results-title-row">
-            <h3>Premium Statistics</h3>
-            {response.current_stock_price && (
-              <div className="current-price-badge">
-                <span className="price-label">Current Price</span>
-                <span className="price-value">${response.current_stock_price.toFixed(2)}</span>
-              </div>
-            )}
-          </div>
-          <div className="results-meta">
-            <span><strong>Ticker:</strong> {response.ticker}</span>
-            <span><strong>Type:</strong> {response.option_type.toUpperCase()}</span>
-            <span><strong>Query Time:</strong> {new Date(response.query_timestamp).toLocaleString()}</span>
-          </div>
+      <div className="results-grid">
+        {/* TOP LEFT: Intraday Stock Chart */}
+        <div className="dashboard-card stock-chart-item">
+          {response ? (
+            <IntradayStockChart
+              ticker={response.ticker}
+              companyName={undefined}
+            />
+          ) : (
+            <div className="placeholder-content">
+              <p>Waiting for ticker data...</p>
+            </div>
+          )}
         </div>
 
-        {response.results.length === 0 ? (
-          <div className="no-results">
-            <p>No premium data found for the specified criteria.</p>
-            <p className="help-text">
-              Try adjusting the strike price, duration tolerance, or lookback period.
-            </p>
+        {/* TOP RIGHT: Premium Statistics Card */}
+        <div className="dashboard-card premium-statistics-card">
+          <div className="results-header">
+            <div className="results-title-row">
+              <h3>Premium Statistics</h3>
+              {response.current_stock_price && (
+                <div className="current-price-badge">
+                  <span className="price-label">Current Price</span>
+                  <span className="price-value">${response.current_stock_price.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+            <div className="results-meta">
+              <span><strong>Ticker:</strong> {response.ticker}</span>
+              <span><strong>Type:</strong> {response.option_type.toUpperCase()}</span>
+              <span><strong>Query Time:</strong> {new Date(response.query_timestamp).toLocaleString()}</span>
+            </div>
           </div>
-        ) : (
-          <div className="results-table-container">
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th>Strike ($)</th>
-                  <th>Duration (days)</th>
-                  <th>Data Points</th>
-                  <th>Min Premium ($)</th>
-                  <th>Avg Premium ($)</th>
-                  <th>Max Premium ($)</th>
-                  <th>Latest ($)</th>
-                  <th>Greeks (Avg)</th>
-                  <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {response.results.map((result: PremiumResult, index: number) => (
-                <tr 
-                  key={index}
-                  className={
-                    selectedStrike === result.strike_price || selectedBoxPlotStrike === result.strike_price
-                      ? 'selected-row'
-                      : ''
-                  }
-                >
-                  <td className="numeric">{formatNumber(result.strike_price)}</td>
-                  <td className="numeric">{result.duration_days}</td>
-                  <td className="numeric">{result.data_points}</td>
-                  <td className="numeric highlight">{formatNumber(result.min_premium)}</td>
-                  <td className="numeric highlight-primary">{formatNumber(result.avg_premium)}</td>
-                  <td className="numeric highlight">{formatNumber(result.max_premium)}</td>
-                  <td className="numeric">{formatNumber(result.latest_premium)}</td>
-                  <td className="greeks">{formatGreeks(result.greeks_avg)}</td>
-                  <td className="actions">
-                    <button
-                      className="histogram-btn"
-                      onClick={() => fetchHistogramData(result)}
-                      disabled={histogramLoading}
-                      title="View premium distribution histogram"
-                    >
-                      📊 Histogram
-                    </button>
-                    <button
-                      className="boxplot-btn"
-                      onClick={() => fetchBoxPlotData(result)}
-                      disabled={boxPlotLoading}
-                      title="View premium vs stock price box plot"
-                    >
-                      📦 Box Plot
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
 
+          {response.results.length === 0 ? (
+            <div className="no-results">
+              <p>No premium data found for the specified criteria.</p>
+              <p className="help-text">
+                Try adjusting the strike price, duration tolerance, or lookback period.
+              </p>
+            </div>
+          ) : (
+            <div className="results-table-wrapper">
+              {response.results.length > STRIKES_PER_PAGE && (
+                <div className="strike-navigation-sidebar">
+                  <div className="nav-group-top">
+                    <button
+                      className="strike-nav-button large"
+                      onClick={() => handleScrollUp(SCROLL_STEP_LARGE)}
+                      disabled={!canScrollUp}
+                      title="Shift 3 strikes up"
+                    >
+                      <span className="strike-nav-arrow">▲▲</span>
+                    </button>
+                    <button
+                      className="strike-nav-button small"
+                      onClick={() => handleScrollUp(SCROLL_STEP_SMALL)}
+                      disabled={!canScrollUp}
+                      title="Shift 1 strike up"
+                    >
+                      <span className="strike-nav-arrow">▲</span>
+                    </button>
+                  </div>
+                  <span className="strike-range-indicator">
+                    {strikeWindowStart + 1}-{Math.min(strikeWindowStart + STRIKES_PER_PAGE, response.results.length)}<br />of {response.results.length}
+                  </span>
+                  <div className="nav-group-bottom">
+                    <button
+                      className="strike-nav-button small"
+                      onClick={() => handleScrollDown(SCROLL_STEP_SMALL)}
+                      disabled={!canScrollDown}
+                      title="Shift 1 strike down"
+                    >
+                      <span className="strike-nav-arrow">▼</span>
+                    </button>
+                    <button
+                      className="strike-nav-button large"
+                      onClick={() => handleScrollDown(SCROLL_STEP_LARGE)}
+                      disabled={!canScrollDown}
+                      title="Shift 3 strikes down"
+                    >
+                      <span className="strike-nav-arrow">▼▼</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="results-table-container">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Strike ($)</th>
+                      <th>Duration (days)</th>
+                      <th>Data Points</th>
+                      <th>Min Premium ($)</th>
+                      <th>Avg Premium ($)</th>
+                      <th>Max Premium ($)</th>
+                      <th>Latest ($)</th>
+                      <th>Greeks (Avg)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getVisibleResults().map((result: PremiumResult, index: number) => (
+                      <tr
+                        key={index}
+                        className={`
+                          ${selectedStrike === result.strike_price || selectedBoxPlotStrike === result.strike_price ? 'selected-row' : ''}
+                          ${result.strike_price === closestStrikePrice ? 'reference-strike-row' : ''}
+                        `.trim()}
+                        onClick={() => {
+                          fetchHistogramData(result);
+                          fetchBoxPlotData(result);
+                        }}
+                        title="Click to view histogram and box plot data"
+                      >
+                        <td className="numeric">{formatNumber(result.strike_price)}</td>
+                        <td className="numeric">{result.duration_days}</td>
+                        <td className="numeric">{result.data_points}</td>
+                        <td className="numeric highlight">{formatNumber(result.min_premium)}</td>
+                        <td className="numeric highlight-primary">{formatNumber(result.avg_premium)}</td>
+                        <td className="numeric highlight">{formatNumber(result.max_premium)}</td>
+                        <td className="numeric">{formatNumber(result.latest_premium)}</td>
+                        <td className="greeks">{formatGreeks(result.greeks_avg)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           <div className="results-summary">
             <p><strong>Total Results:</strong> {response.results.length} strike/duration combinations</p>
             <p><strong>Total Data Points:</strong> {response.results.reduce((sum, r) => sum + r.data_points, 0)}</p>
             <button
               className="surface-3d-toggle-btn"
               onClick={() => setShow3DSurface(!show3DSurface)}
+              style={{ width: '100%', padding: '8px' }}
             >
               {show3DSurface ? '✕ Hide' : '🎲 View'} 3D Premium Surface
             </button>
           </div>
         </div>
-        )}
+
+        {/* BOTTOM LEFT: Histogram Section */}
+        <div className="dashboard-card histogram-item">
+          {histogramLoading && (
+            <div className="card-loading">
+              <div className="spinner"></div>
+              <p>Loading histogram...</p>
+            </div>
+          )}
+
+          {histogramError && (
+            <div className="card-error">
+              <p>Error: {histogramError}</p>
+            </div>
+          )}
+
+          {histogramData && !histogramLoading && !histogramError ? (
+            <PremiumHistogram
+              premiums={histogramData.premiums}
+              ticker={histogramData.ticker}
+              optionType={histogramData.optionType}
+              strikePrice={histogramData.strikePrice}
+              durationDays={histogramData.durationDays}
+              dataPoints={histogramData.dataPoints}
+            />
+          ) : !histogramLoading && !histogramError && (
+            <div className="placeholder-content">
+              <p>Select a strike to view distribution</p>
+            </div>
+          )}
+        </div>
+
+        {/* BOTTOM RIGHT: Box Plot Section */}
+        <div className="dashboard-card boxplot-item">
+          {boxPlotLoading && (
+            <div className="card-loading">
+              <div className="spinner"></div>
+              <p>Loading box plot...</p>
+            </div>
+          )}
+
+          {boxPlotError && (
+            <div className="card-error">
+              <p>Error: {boxPlotError}</p>
+            </div>
+          )}
+
+          {boxPlotData && !boxPlotLoading && !boxPlotError ? (
+            <PremiumBoxPlot
+              ticker={boxPlotData.ticker}
+              optionType={boxPlotData.optionType}
+              strikePrice={boxPlotData.strikePrice}
+              durationDays={boxPlotData.durationDays}
+              currentStockPrice={response?.current_stock_price}
+              dataPoints={boxPlotData.dataPoints}
+              stockPriceRange={boxPlotData.stockPriceRange}
+            />
+          ) : !boxPlotLoading && !boxPlotError && (
+            <div className="placeholder-content">
+              <p>Select a strike to view box plot</p>
+            </div>
+          )}
+        </div>
       </div>
-      {/* End Premium Statistics Card */}
 
-      {/* Histogram Section */}
-      {histogramLoading && (
-        <div className="histogram-loading">
-          <div className="spinner"></div>
-          <p>Loading histogram data...</p>
-        </div>
-      )}
-
-      {histogramError && (
-        <div className="histogram-error">
-          <p>Error loading histogram: {histogramError}</p>
-        </div>
-      )}
-
-      {histogramData && !histogramLoading && !histogramError && (
-        <PremiumHistogram
-          premiums={histogramData.premiums}
-          ticker={histogramData.ticker}
-          optionType={histogramData.optionType}
-          strikePrice={histogramData.strikePrice}
-          durationDays={histogramData.durationDays}
-          dataPoints={histogramData.dataPoints}
-        />
-      )}
-
-      {/* Box Plot Section */}
-      {boxPlotLoading && (
-        <div className="histogram-loading">
-          <div className="spinner"></div>
-          <p>Loading box plot data...</p>
-        </div>
-      )}
-
-      {boxPlotError && (
-        <div className="histogram-error">
-          <p>Error loading box plot: {boxPlotError}</p>
-        </div>
-      )}
-
-      {boxPlotData && !boxPlotLoading && !boxPlotError && (
-        <PremiumBoxPlot
-          ticker={boxPlotData.ticker}
-          optionType={boxPlotData.optionType}
-          strikePrice={boxPlotData.strikePrice}
-          durationDays={boxPlotData.durationDays}
-          currentStockPrice={response?.current_stock_price}
-          dataPoints={boxPlotData.dataPoints}
-          stockPriceRange={boxPlotData.stockPriceRange}
-        />
-      )}
-
-      {/* 3D Surface Section */}
+      {/* 3D Surface Section Overlay or Full Width Below */}
       {show3DSurface && response && queryRequest && (
-        <PremiumSurface3D
-          ticker={response.ticker}
-          optionType={
-            typeof response.option_type === 'string'
-              ? response.option_type
-              : response.option_type.valueOf()
-          }
-          initialDuration={queryRequest.duration_days || 30}
-          lookbackDays={queryRequest.lookback_days || 30}
-          toleranceDays={queryRequest.duration_tolerance_days ?? 3}
-          queryStrikePrices={response.results.map(r => r.strike_price)}
-        />
+        <div className="dashboard-card surface-card full-width">
+          <PremiumSurface3D
+            ticker={response.ticker}
+            optionType={
+              (response.option_type as any).toString().toLowerCase()
+            }
+            initialDuration={queryRequest.duration_days || 30}
+            lookbackDays={queryRequest.lookback_days || 30}
+            toleranceDays={queryRequest.duration_tolerance_days ?? 3}
+            queryStrikePrices={response.results.map(r => r.strike_price)}
+          />
+        </div>
       )}
     </div>
   );

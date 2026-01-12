@@ -214,6 +214,14 @@ class YahooFinanceScraper:
         scraper_run.total_contracts = metrics.total_contracts
         self.db.commit()
         
+        # Track API queries in scheduler config
+        from ..models.scraper_schedule import ScraperSchedule
+        config = self.db.query(ScraperSchedule).first()
+        if config:
+            config.increment_query_count(metrics.total_api_requests)
+            self.db.commit()
+            logger.info(f"Updated daily API query count: {config.daily_api_queries} queries today")
+        
         # Clear progress after completion
         update_scraper_progress(
             is_running=False,

@@ -236,6 +236,12 @@
   background: #fffbeb;
 }
 
+.rate-limit-row.actual-queries {
+  border-color: #0066cc;
+  background: #eff6ff;
+  margin-top: 8px;
+}
+
 .rate-icon {
   font-size: 20px;
   font-weight: bold;
@@ -249,6 +255,10 @@
   color: #f59e0b;
 }
 
+.actual-queries .rate-icon {
+  color: #0066cc;
+}
+
 .rate-label {
   font-weight: 500;
   color: #555;
@@ -258,6 +268,70 @@
   font-weight: 600;
   font-size: 16px;
   color: #1a1a1a;
+}
+
+.reset-info {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.reset-info small {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+/* Query Progress Bar */
+.query-progress-container {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.query-progress-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.query-percentage {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.query-progress-bar {
+  height: 20px;
+  background: #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.query-progress-fill {
+  height: 100%;
+  transition: width 0.5s ease, background-color 0.3s ease;
+  border-radius: 10px;
+  position: relative;
+}
+
+.query-progress-fill.ok {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.query-progress-fill.warning {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.query-progress-fill.danger {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
 }
 
 .warnings-section {

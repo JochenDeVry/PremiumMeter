@@ -19,6 +19,7 @@ const IntradayStockChart: React.FC<IntradayStockChartProps> = ({ ticker, company
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<IntradayDataPoint[]>([]);
   const [source, setSource] = useState<string>('');
+  const [date, setDate] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchIntradayData = async () => {
@@ -34,6 +35,7 @@ const IntradayStockChart: React.FC<IntradayStockChartProps> = ({ ticker, company
       const response = await apiClient.getIntradayPrices(ticker);
       setData(response.data_points);
       setSource(response.source);
+      setDate(response.date);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -110,17 +112,27 @@ const IntradayStockChart: React.FC<IntradayStockChartProps> = ({ ticker, company
   const priceChange = latestPrice - firstPrice;
   const priceChangePercent = ((priceChange / firstPrice) * 100);
 
+  const isHistorical = source.includes('Historical');
+  const displayDate = new Date(date).toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return (
-    <div className="intraday-chart-container">
+    <div className={`intraday-chart-container ${isHistorical ? 'historical-fallback' : ''}`}>
       <div className="intraday-header">
         <div className="chart-title-row">
-          <h3>Intraday Stock Price - {ticker}</h3>
+          <h3>
+            {isHistorical ? 'Previous Day Stock Price' : 'Intraday Stock Price'} - {ticker}
+          </h3>
           <div className="price-info">
-            <button 
+            <button
               className={`refresh-btn ${refreshing ? 'refreshing' : ''}`}
               onClick={handleRefresh}
               disabled={refreshing}
-              title="Refresh intraday data"
+              title="Refresh data"
             >
               🔄
             </button>
@@ -130,8 +142,14 @@ const IntradayStockChart: React.FC<IntradayStockChartProps> = ({ ticker, company
             </span>
           </div>
         </div>
+        {isHistorical && (
+          <div className="fallback-notice">
+            ⚠️ Intraday data for today is unavailable. Showing data from {displayDate}.
+          </div>
+        )}
         <div className="chart-info">
           {companyName && <span className="company-name">{companyName}</span>}
+          <span className="data-date">Date: {date}</span>
           <span className="data-source">Source: {source}</span>
           <span className="data-points">{data.length} data points</span>
           <span className="interval">5-minute intervals</span>

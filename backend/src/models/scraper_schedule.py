@@ -80,6 +80,18 @@ class ScraperSchedule(Base):
         comment="Maximum number of option expirations to fetch per stock (nearest dates)"
     )
     
+    # Daily Query Counter (resets at 7:30 AM EST)
+    daily_api_queries = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Count of API queries made today (resets at 7:30 AM EST)"
+    )
+    last_reset_date = Column(
+        DateTime(timezone=True),
+        comment="Last time the daily counter was reset"
+    )
+    
     # Status
     scheduler_status = Column(
         Enum(SchedulerStatus, name="scheduler_status"),
@@ -118,3 +130,61 @@ class ScraperSchedule(Base):
         
         # Compare against configured market hours
         return self.market_hours_start <= current_time <= self.market_hours_end
+    
+    def check_and_reset_daily_counter(self) -> bool:
+        """
+        Check if daily counter needs to be reset (at 7:30 AM EST / 1:30 PM Brussels).
+        Resets counter if it's a new day past 7:30 AM EST.
+        
+        Returns:
+            True if counter was reset, False otherwise
+        """
+        # Reset time is 7:30 AM EST (two hours before market open at 9:30 AM)
+        reset_time = dt_time(7, 30, 0)
+        est_tz = pytz.timezone('America/New_York')
+        now_est = datetime.now(est_tz)
+        current_time_est = now_est.time()
+        current_date_est = now_est.date()
+        
+        # If no last_reset_date, initialize it
+        if self.last_reset_date is None:
+            self.last_reset_date = now_est
+            self.daily_api_queries = 0
+            return True
+        
+        # Convert last_reset to EST for comparison
+        last_reset_est = self.last_reset_date.astimezone(est_tz)
+        last_reset_date_est = last_reset_est.date()
+        
+        # Check if it's a new day and we've passed 7:30 AM EST
+        if current_date_est > last_reset_date_est:
+            # It's a new day - check if we've passed reset time
+            if current_time_est >= reset_time:
+                self.daily_api_queries = 0
+                self.last_reset_date = now_est
+                return True
+            # If it's a new day but before reset time, check if yesterday's reset was done
+            elif last_reset_date_est < current_date_est:
+                # Yesterday we didn't reset yet, so do it now
+                self.daily_api_queries = 0
+                self.last_reset_date = now_est
+                return True
+        elif current_date_est == last_reset_date_est:
+            # Same day - check if last reset was before 7:30 AM and now it's after
+            if last_reset_est.time() < reset_time and current_time_est >= reset_time:
+                self.daily_api_queries = 0
+                self.last_reset_date = now_est
+                return True
+        
+        return False
+    
+    def increment_query_count(self, count: int = 1) -> None:
+        """
+        Increment the daily API query counter.
+        
+        Args:
+            count: Number of queries to add (default: 1)
+        """
+        # Check if counter needs reset before incrementing
+        self.check_and_reset_daily_counter()
+        self.daily_api_queries += count

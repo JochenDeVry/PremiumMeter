@@ -25,8 +25,8 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   const [strikeMode, setStrikeMode] = useState<StrikeMode>(StrikeMode.NEAREST);
   const [strikePrice, setStrikePrice] = useState<string>('270');
   const [strikeRangePercent, setStrikeRangePercent] = useState<string>('5');
-  const [nearestCountAbove, setNearestCountAbove] = useState<string>('5');
-  const [nearestCountBelow, setNearestCountBelow] = useState<string>('5');
+  const [nearestCountAbove, setNearestCountAbove] = useState<string>('20');
+  const [nearestCountBelow, setNearestCountBelow] = useState<string>('20');
   const [expirationDate, setExpirationDate] = useState<string>('');
   const [durationDays, setDurationDays] = useState<string>('7');
   const [durationToleranceDays, setDurationToleranceDays] = useState<string>('0');
@@ -38,36 +38,36 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
     const fridays: Array<{ date: string; label: string; days: number }> = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // Find next Friday
     let current = new Date(today);
     const dayOfWeek = current.getDay();
     const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7; // If today is Friday, get next Friday
     current.setDate(current.getDate() + daysUntilFriday);
-    
+
     // Generate next N Fridays
     for (let i = 0; i < count; i++) {
       const dateString = current.toISOString().split('T')[0];
       const diffTime = current.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      const label = current.toLocaleDateString('en-US', { 
+
+      const label = current.toLocaleDateString('en-US', {
         weekday: 'short',
-        month: 'short', 
+        month: 'short',
         day: 'numeric',
         year: 'numeric'
       });
-      
+
       fridays.push({
         date: dateString,
         label: `${label} (${diffDays} days until expiry)`,
         days: diffDays
       });
-      
+
       // Move to next Friday
       current.setDate(current.getDate() + 7);
     }
-    
+
     return fridays;
   };
 
@@ -85,7 +85,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   const handleDateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const dateString = e.target.value;
     const selectedFriday = upcomingFridays.find(f => f.date === dateString);
-    
+
     if (selectedFriday) {
       setExpirationDate(dateString);
       setDurationDays(selectedFriday.days.toString());
@@ -99,13 +99,13 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
         const stockList = await apiClient.listAllStocks();
         setStocks(stockList);
         setFilteredStocks(stockList);
-        
+
         // Set initial selected stock (AAPL)
         const initialStock = stockList.find(s => s.ticker === 'AAPL');
         if (initialStock) {
           setSelectedStock(initialStock);
         }
-        
+
         // Fetch initial strike price for default ticker (AAPL)
         fetchStockPrice('AAPL');
       } catch (error) {
@@ -122,8 +122,8 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
     } else {
       const term = searchTerm.toLowerCase();
       const filtered = stocks.filter(
-        stock => 
-          stock.ticker.toLowerCase().includes(term) || 
+        stock =>
+          stock.ticker.toLowerCase().includes(term) ||
           stock.company_name.toLowerCase().includes(term)
       );
       setFilteredStocks(filtered);
@@ -151,7 +151,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
     setSearchTerm(selectedTicker);
     setShowDropdown(false);
     setIsSearching(false);  // Done searching
-    
+
     // Fetch and set the current stock price as strike price
     fetchStockPrice(selectedTicker);
   };
@@ -215,12 +215,12 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
     <form onSubmit={handleSubmit} className="query-form">
       <div className="form-section">
         <h3>Stock & Option Type</h3>
-        
+
         <div className="form-group">
           <label htmlFor="ticker">Ticker Symbol</label>
           <div className="stock-search-container" ref={dropdownRef}>
             {!isSearching && selectedStock ? (
-              <div 
+              <div
                 className="stock-display-selected"
                 onClick={handleInputFocus}
               >
@@ -287,7 +287,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
 
       <div className="form-section">
         <h3>Strike Price Matching</h3>
-        
+
         <div className="form-group">
           <label htmlFor="strikeMode">Strike Mode</label>
           <div className="select-wrapper">
@@ -355,7 +355,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
                 value={nearestCountAbove}
                 onChange={(e) => setNearestCountAbove(e.target.value)}
                 min="0"
-                max="10"
+                max="50"
                 required
                 disabled={loading}
               />
@@ -369,7 +369,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
                 value={nearestCountBelow}
                 onChange={(e) => setNearestCountBelow(e.target.value)}
                 min="0"
-                max="10"
+                max="50"
                 required
                 disabled={loading}
               />
@@ -380,7 +380,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
 
       <div className="form-section">
         <h3>Expiration & Time Window</h3>
-        
+
         <div className="form-group">
           <label htmlFor="expirationDate">Expiration Date</label>
           <div className="select-wrapper">

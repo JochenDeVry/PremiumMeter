@@ -294,6 +294,8 @@ class RateLimitCalculation(BaseSchema):
     within_hour_limit: bool = Field(..., description="Whether within 360/hour limit")
     within_day_limit: bool = Field(..., description="Whether within 8000/day limit")
     warnings: List[str] = Field(default_factory=list, description="Rate limit warnings")
+    actual_queries_today: int = Field(..., description="Actual API queries made today")
+    last_reset_time: Optional[str] = Field(None, description="Last time the counter was reset")
 
 
 # ============================================================================
