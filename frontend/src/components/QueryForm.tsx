@@ -31,6 +31,8 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   const [durationDays, setDurationDays] = useState<string>('7');
   const [durationToleranceDays, setDurationToleranceDays] = useState<string>('0');
   const [lookbackDays, setLookbackDays] = useState<string>('');  // Empty string means entire database
+  const [stockPriceRangePercent, setStockPriceRangePercent] = useState<string>('5');
+  const [currentStockPrice, setCurrentStockPrice] = useState<number | null>(null);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState<boolean>(false);
 
   // Get next N Fridays from today
@@ -161,6 +163,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
       const priceInfo = await apiClient.getStockPrice(ticker);
       if (priceInfo.latest_price !== null) {
         setStrikePrice(priceInfo.latest_price.toFixed(2));
+        setCurrentStockPrice(priceInfo.latest_price);
       }
     } catch (error) {
       console.error('Failed to fetch stock price:', error);
@@ -198,6 +201,9 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
       duration_tolerance_days: parseInt(durationToleranceDays),
       // If lookbackDays is empty, use a very large number to query entire database
       lookback_days: lookbackDays.trim() === '' ? 3650 : parseInt(lookbackDays),
+      // Stock price matching
+      current_stock_price: currentStockPrice || undefined,
+      stock_price_range_percent: parseFloat(stockPriceRangePercent),
     };
 
     // Add mode-specific parameters
@@ -376,6 +382,43 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
             </div>
           </>
         )}
+      </div>
+
+      <div className="form-section">
+        <h3>Stock Price Matching</h3>
+
+        <div className="form-group">
+          <label>Reference Price ($)</label>
+          <div className="current-price-display">
+            {currentStockPrice !== null ? (
+              <span className="price-value">${currentStockPrice.toFixed(2)}</span>
+            ) : (
+              <span className="price-loading">Fetching price...</span>
+            )}
+            <small className="form-help">Current stock price used for range filtering</small>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="stockPriceRangePercent">Stock Price Range (%)</label>
+          <input
+            type="number"
+            id="stockPriceRangePercent"
+            value={stockPriceRangePercent}
+            onChange={(e) => setStockPriceRangePercent(e.target.value)}
+            step="0.1"
+            min="0"
+            max="100"
+            required
+            disabled={loading}
+          />
+          <small className="form-help">
+            Only use data from when stock was ±{stockPriceRangePercent}% of ${currentStockPrice?.toFixed(2) || '...'}
+            {currentStockPrice && (
+              <>: ${(currentStockPrice * (1 - parseFloat(stockPriceRangePercent) / 100)).toFixed(2)} - ${(currentStockPrice * (1 + parseFloat(stockPriceRangePercent) / 100)).toFixed(2)}</>
+            )}
+          </small>
+        </div>
       </div>
 
       <div className="form-section">

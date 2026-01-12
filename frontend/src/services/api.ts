@@ -26,7 +26,36 @@ import type {
 // API Client Configuration
 // ============================================================================
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Dynamically determine API URL based on current hostname
+// This allows the app to work in both development (localhost) and production (NAS) without rebuilding
+const getApiBaseUrl = (): string => {
+  // If VITE_API_URL is set, use it (for explicit overrides)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Otherwise, derive from current location
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+  
+  // If on localhost with a specific port, backend is likely on port 8000
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//${hostname}:8000`;
+  }
+  
+  // For production/NAS deployment, assume backend is on same host with /api prefix
+  // or use the same port as frontend if port is specified
+  if (port && port !== '80' && port !== '443') {
+    // If frontend is on a custom port, try backend on 8000
+    return `${protocol}//${hostname}:8000`;
+  }
+  
+  // Default: same origin (for reverse proxy setups)
+  return `${protocol}//${hostname}${port ? ':' + port : ''}`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class APIClient {
   private client: AxiosInstance;

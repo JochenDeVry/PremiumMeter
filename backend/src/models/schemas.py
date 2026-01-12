@@ -115,6 +115,19 @@ class PremiumQueryRequest(BaseSchema):
         ge=1,
         le=3650
     )
+
+    # Stock price matching
+    current_stock_price: Optional[Decimal] = Field(
+        None,
+        description="Current stock price at query time for historical comparison",
+        gt=0
+    )
+    stock_price_range_percent: Optional[float] = Field(
+        None,
+        description="Percentage range for matching stock price at collection time",
+        ge=0,
+        le=100
+    )
     
     @field_validator('strike_price')
     @classmethod

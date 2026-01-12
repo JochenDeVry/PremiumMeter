@@ -55,6 +55,8 @@ export interface PremiumQueryRequest {
   duration_days: number;
   duration_tolerance_days?: number;
   lookback_days?: number;
+  current_stock_price?: number;
+  stock_price_range_percent?: number;
 }
 
 export interface GreeksAverage {

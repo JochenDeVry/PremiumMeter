@@ -58,9 +58,10 @@ services:
       dockerfile: Dockerfile
     container_name: premiummeter_frontend
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api}
+      # VITE_API_URL is optional - frontend auto-detects API URL based on hostname
+      VITE_API_URL: ${VITE_API_URL:-}
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${FRONTEND_PORT:-3000}:5173"
     depends_on:
       - backend
     networks:

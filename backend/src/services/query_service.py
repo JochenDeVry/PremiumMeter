@@ -80,6 +80,21 @@ class QueryService:
                     HistoricalPremiumRecord.days_to_expiry <= max_dte
                 )
             )
+
+        # Apply stock price filter if specified
+        if request.current_stock_price is not None and request.stock_price_range_percent is not None:
+            ref_price = Decimal(str(request.current_stock_price))
+            range_multiplier = Decimal(str(request.stock_price_range_percent)) / Decimal(100)
+            min_stock_price = ref_price * (Decimal(1) - range_multiplier)
+            max_stock_price = ref_price * (Decimal(1) + range_multiplier)
+            
+            logger.info(f"Filtering by stock price at collection: ${min_stock_price:.2f} - ${max_stock_price:.2f}")
+            base_query = base_query.filter(
+                and_(
+                    HistoricalPremiumRecord.stock_price_at_collection >= min_stock_price,
+                    HistoricalPremiumRecord.stock_price_at_collection <= max_stock_price
+                )
+            )
         
         # Apply strike filter based on mode
         if request.strike_mode == StrikeModeType.exact:
