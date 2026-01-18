@@ -6,8 +6,10 @@ Implements User Story 1 API contract per contracts/openapi.yaml.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from typing import Annotated, List, Optional
+from decimal import Decimal
 import logging
 
 from ...database.connection import get_db
@@ -32,6 +34,8 @@ class PremiumDistributionRequest(BaseModel):
     duration_days: int
     duration_tolerance_days: int = 3
     lookback_days: int = 30
+    current_stock_price: Optional[float] = None
+    stock_price_range_percent: Optional[float] = None
 
 
 class PremiumDistributionResponse(BaseModel):
@@ -173,7 +177,7 @@ async def query_premium_distribution(
         max_dte = request.duration_days + request.duration_tolerance_days
         
         # Query all matching records
-        records = db.query(HistoricalPremiumRecord).filter(
+        query = db.query(HistoricalPremiumRecord).filter(
             HistoricalPremiumRecord.stock_id == stock.stock_id,
             HistoricalPremiumRecord.option_type == request.option_type,
             HistoricalPremiumRecord.strike_price == request.strike_price,
@@ -181,7 +185,24 @@ async def query_premium_distribution(
             HistoricalPremiumRecord.days_to_expiry <= max_dte,
             HistoricalPremiumRecord.collection_timestamp >= start_time,
             HistoricalPremiumRecord.collection_timestamp <= end_time
-        ).all()
+        )
+
+        # Apply stock price filter if provided
+        if request.current_stock_price is not None and request.stock_price_range_percent is not None:
+            ref_price = Decimal(str(request.current_stock_price))
+            range_multiplier = Decimal(str(request.stock_price_range_percent)) / Decimal(100)
+            min_stock_price = ref_price * (Decimal(1) - range_multiplier)
+            max_stock_price = ref_price * (Decimal(1) + range_multiplier)
+            
+            logger.info(f"Distribution: Filtering by stock price at collection: ${min_stock_price:.2f} - ${max_stock_price:.2f}")
+            query = query.filter(
+                and_(
+                    HistoricalPremiumRecord.stock_price_at_collection >= min_stock_price,
+                    HistoricalPremiumRecord.stock_price_at_collection <= max_stock_price
+                )
+            )
+
+        records = query.all()
         
         # Log detailed info for debugging
         logger.info(
@@ -238,6 +259,8 @@ class PremiumBoxPlotRequest(BaseModel):
     duration_days: int
     duration_tolerance_days: int = 0
     lookback_days: int = 30
+    current_stock_price: Optional[float] = None
+    stock_price_range_percent: Optional[float] = None
 
 
 class PremiumBoxPlotDataPoint(BaseModel):
@@ -294,7 +317,7 @@ async def query_premium_boxplot(
         max_dte = request.duration_days + request.duration_tolerance_days
         
         # Query all matching records with stock price and premium
-        records = db.query(HistoricalPremiumRecord).filter(
+        query = db.query(HistoricalPremiumRecord).filter(
             HistoricalPremiumRecord.stock_id == stock.stock_id,
             HistoricalPremiumRecord.option_type == request.option_type,
             HistoricalPremiumRecord.strike_price == request.strike_price,
@@ -302,7 +325,24 @@ async def query_premium_boxplot(
             HistoricalPremiumRecord.days_to_expiry <= max_dte,
             HistoricalPremiumRecord.collection_timestamp >= start_time,
             HistoricalPremiumRecord.collection_timestamp <= end_time
-        ).all()
+        )
+
+        # Apply stock price filter if provided
+        if request.current_stock_price is not None and request.stock_price_range_percent is not None:
+            ref_price = Decimal(str(request.current_stock_price))
+            range_multiplier = Decimal(str(request.stock_price_range_percent)) / Decimal(100)
+            min_stock_price = ref_price * (Decimal(1) - range_multiplier)
+            max_stock_price = ref_price * (Decimal(1) + range_multiplier)
+            
+            logger.info(f"BoxPlot: Filtering by stock price at collection: ${min_stock_price:.2f} - ${max_stock_price:.2f}")
+            query = query.filter(
+                and_(
+                    HistoricalPremiumRecord.stock_price_at_collection >= min_stock_price,
+                    HistoricalPremiumRecord.stock_price_at_collection <= max_stock_price
+                )
+            )
+
+        records = query.all()
         
         logger.info(f"Found {len(records)} records for box plot")
         

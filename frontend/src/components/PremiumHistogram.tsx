@@ -19,6 +19,7 @@ const PremiumHistogram: React.FC<PremiumHistogramProps> = ({
   durationDays,
   dataPoints,
 }) => {
+  const [isExpanded, setIsExpanded] = React.useState(false);
   if (!premiums || premiums.length === 0) {
     return (
       <div className="histogram-container">
@@ -79,7 +80,7 @@ const PremiumHistogram: React.FC<PremiumHistogramProps> = ({
               },
             },
             name: 'Frequency',
-            hovertemplate: 
+            hovertemplate:
               '<b>Premium Range:</b> $%{x}<br>' +
               '<b>Frequency:</b> %{y}<br>' +
               '<extra></extra>',
@@ -113,12 +114,18 @@ const PremiumHistogram: React.FC<PremiumHistogramProps> = ({
         style={{ width: '100%', height: '450px' }}
       />
 
-      <div className="histogram-interpretation">
-        <p className="help-text">
-          <strong>Interpretation:</strong> This histogram shows how frequently different premium values occur.
-          Higher bars indicate premium levels that appear more often in the historical data, suggesting
-          higher probability of those premium levels occurring.
-        </p>
+      <div className={`expandable-section ${isExpanded ? 'expanded' : ''}`}>
+        <div className="expandable-header" onClick={() => setIsExpanded(!isExpanded)}>
+          <h4>📊 How to Read This Plot</h4>
+          <span className="toggle-icon">▼</span>
+        </div>
+        <div className="expandable-content">
+          <p className="help-text">
+            This histogram shows how frequently different premium values occur.
+            Higher bars indicate premium levels that appear more often in the historical data, suggesting
+            higher probability of those premium levels occurring.
+          </p>
+        </div>
       </div>
     </div>
   );

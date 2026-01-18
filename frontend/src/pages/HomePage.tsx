@@ -33,12 +33,12 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="container">
-      <h1>Query Historical Premium Data</h1>
+      <h1>Query Settings</h1>
       <div className="query-section-fullwidth">
         <div className="query-form-wrapper-fullwidth">
           <QueryForm onSubmit={handleQuery} loading={loading} />
         </div>
-
+        <h1>Premium Data</h1>
         <div className="query-results-wrapper-fullwidth">
           <PremiumResults
             response={response}

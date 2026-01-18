@@ -10,6 +10,8 @@ interface PremiumSurface3DProps {
   lookbackDays?: number;
   toleranceDays?: number;
   queryStrikePrices?: number[];  // Strike prices from the premium query results
+  queryStockPrice?: number;    // Stock price used in the query
+  queryStockPriceRange?: number; // Stock price range percent used in the query
 }
 
 const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
@@ -19,11 +21,14 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
   lookbackDays = 30,
   toleranceDays = 3,
   queryStrikePrices,
+  queryStockPrice,
+  queryStockPriceRange,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [durationDays, setDurationDays] = useState(initialDuration);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showRelative, setShowRelative] = useState(false); // Toggle for relative vs absolute
+  const [showRelative, setShowRelative] = useState(true); // Toggle for relative vs absolute
   const [currentStockPrice, setCurrentStockPrice] = useState<number | null>(null);
   const [xAxisRange, setXAxisRange] = useState<[number, number] | null>(null);
   const [yAxisRange, setYAxisRange] = useState<[number, number] | null>(null);
@@ -105,30 +110,54 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         });
       }
 
-      // Calculate default axis ranges if current stock price is available
-      const stockPrice = currentStockPrice || await fetchCurrentStockPrice();
+      // Calculate default axis ranges
+      const stockPrice = queryStockPrice || currentStockPrice || await fetchCurrentStockPrice();
       if (stockPrice && data.strike_prices.length > 0 && data.stock_prices.length > 0) {
-        // Y-axis: current stock price ±5%, but expand to database range if it's wider
-        const defaultYMin = stockPrice * 0.95;
-        const defaultYMax = stockPrice * 1.05;
+        // Y-axis range: use query values if provided, otherwise default to ±5%
+        const rangePercent = queryStockPriceRange || 5;
+        const rangeMultiplier = rangePercent / 100;
+
+        const defaultYMin = stockPrice * (1 - rangeMultiplier);
+        const defaultYMax = stockPrice * (1 + rangeMultiplier);
+
         const dbYMin = Math.min(...data.stock_prices);
         const dbYMax = Math.max(...data.stock_prices);
 
-        // Use whichever range is wider to avoid compressing data into a narrow band
-        const yMin = Math.min(defaultYMin, dbYMin);
-        const yMax = Math.max(defaultYMax, dbYMax);
+        // Find actual min/max stock prices that have data (within the returned grid)
+        const stockPriceIndicesWithData = data.stock_prices
+          .map((_, idx) => idx)
+          .filter(idx => filteredPremiumGrid[idx].some(p => p !== null));
+
+        let yMin, yMax;
+        if (stockPriceIndicesWithData.length > 0) {
+          const pricesWithData = stockPriceIndicesWithData.map(idx => data.stock_prices[idx]);
+          yMin = Math.min(...pricesWithData);
+          yMax = Math.max(...pricesWithData);
+        } else {
+          // Fallback to strict query range or database range
+          yMin = queryStockPriceRange ? defaultYMin : Math.min(defaultYMin, dbYMin);
+          yMax = queryStockPriceRange ? defaultYMax : Math.max(defaultYMax, dbYMax);
+        }
         setYAxisRange([yMin, yMax]);
 
-        // X-axis: use strike prices from the query results if available, otherwise use surface data range
-        if (queryStrikePrices && queryStrikePrices.length > 0) {
-          const xMin = Math.min(...queryStrikePrices);
-          const xMax = Math.max(...queryStrikePrices);
-          setXAxisRange([xMin, xMax]);
+        // X-axis range (Strike Price): Based on option type and stock price
+        let defaultXMin, defaultXMax;
+        if (optionType.toLowerCase() === 'call') {
+          defaultXMin = stockPrice * 0.99;
+          defaultXMax = stockPrice * 1.10;
         } else {
-          const xMin = Math.min(...data.strike_prices);
-          const xMax = Math.max(...data.strike_prices);
-          setXAxisRange([xMin, xMax]);
+          // Default or PUT
+          defaultXMin = stockPrice * 0.90;
+          defaultXMax = stockPrice * 1.01;
         }
+
+        const dbXMin = Math.min(...data.strike_prices);
+        const dbXMax = Math.max(...data.strike_prices);
+
+        // Clamp to available data or use defaults
+        const xMin = Math.max(defaultXMin, dbXMin);
+        const xMax = Math.min(defaultXMax, dbXMax);
+        setXAxisRange([xMin, xMax]);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load surface data';
@@ -265,17 +294,6 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
   };
 
   const visibleStats = getVisibleDataStats();
-
-  // Create color array based on premium values for dynamic color coding
-  // Use visible data range for color normalization
-  const surfaceColors = displayGrid.map((row) => {
-    return row.map(value => {
-      if (value === null) return null;
-      // Normalize value to 0-1 range using VISIBLE data range for dynamic color coding
-      const normalizedValue = (value - visibleStats.min) / (visibleStats.max - visibleStats.min);
-      return normalizedValue;
-    });
-  });
 
   return (
     <div className="surface-3d-container">
@@ -533,14 +551,16 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
 
       <div className="surface-3d-plot">
         <Plot
-          key={`${xAxisRange?.[0]}-${xAxisRange?.[1]}-${yAxisRange?.[0]}-${yAxisRange?.[1]}-${zAxisRange?.[0]}-${zAxisRange?.[1]}-${showRelative}`}
+          key={`${xAxisRange?.[0]}-${xAxisRange?.[1]}-${zAxisRange?.[0]}-${zAxisRange?.[1]}-${showRelative}`}
           data={[
             {
               type: 'surface',
               x: surfaceData.strike_prices,
               y: surfaceData.stock_prices,
               z: displayGrid,
-              surfacecolor: surfaceColors,
+              cauto: false,
+              cmin: visibleStats.min,
+              cmax: visibleStats.max,
               colorscale: [
                 [0, '#1e3a8a'],      // Deep blue (low)
                 [0.25, '#3b82f6'],   // Blue
@@ -552,18 +572,13 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                 title: showRelative ? 'Premium (%)' : 'Premium ($)',
                 thickness: 20,
                 len: 0.7,
-                ticktext: showRelative
-                  ? [
-                    `${visibleStats.min.toFixed(2)}%`,
-                    `${((visibleStats.min + visibleStats.max) / 2).toFixed(2)}%`,
-                    `${visibleStats.max.toFixed(2)}%`
-                  ]
-                  : [
-                    `$${visibleStats.min.toFixed(2)}`,
-                    `$${((visibleStats.min + visibleStats.max) / 2).toFixed(2)}`,
-                    `$${visibleStats.max.toFixed(2)}`
-                  ],
-                tickvals: [0, 0.5, 1],
+                tickvals: [0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1].map(v =>
+                  visibleStats.min + v * (visibleStats.max - visibleStats.min)
+                ),
+                ticktext: [0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1].map(v => {
+                  const val = visibleStats.min + v * (visibleStats.max - visibleStats.min);
+                  return showRelative ? `${val.toFixed(2)}%` : `$${val.toFixed(2)}`;
+                }),
               },
               contours: {
                 z: {
@@ -591,29 +606,21 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                 title: 'Strike Price ($)',
                 range: xAxisRange ? [xAxisRange[0], xAxisRange[1]] : undefined,
                 autorange: xAxisRange ? false : true,
-                autorangeoptions: {
-                  clipmin: xAxisRange ? xAxisRange[0] : undefined,
-                  clipmax: xAxisRange ? xAxisRange[1] : undefined,
-                },
               },
               yaxis: {
                 title: 'Stock Price ($)',
                 range: yAxisRange ? [yAxisRange[0], yAxisRange[1]] : undefined,
                 autorange: yAxisRange ? false : true,
-                autorangeoptions: {
-                  clipmin: yAxisRange ? yAxisRange[0] : undefined,
-                  clipmax: yAxisRange ? yAxisRange[1] : undefined,
-                },
               },
               zaxis: {
                 title: showRelative ? 'Premium (% of Strike)' : 'Premium ($)',
-                range: zAxisRange ? [zAxisRange[0], zAxisRange[1]] : undefined,
-                autorange: zAxisRange ? false : true,
+                range: [0, visibleStats.max],
+                autorange: false,
               },
               camera: {
                 eye: { x: -1.5, y: -1.5, z: 1.3 },
               },
-              aspectmode: 'auto',  // Allow axes to scale independently
+              aspectmode: 'auto',
             },
             autosize: true,
             height: 700,
@@ -633,19 +640,43 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                 },
                 click: function (gd: any) {
                   // Reset to default ranges
-                  if (surfaceData && currentStockPrice) {
-                    const yMin = currentStockPrice * 0.95;
-                    const yMax = currentStockPrice * 1.05;
+                  if (surfaceData && (queryStockPrice || currentStockPrice)) {
+                    const stockPrice = queryStockPrice || currentStockPrice || 0;
+                    const rangePercent = queryStockPriceRange || 5;
+                    const rangeMultiplier = rangePercent / 100;
+                    const baseMin = stockPrice * (1 - rangeMultiplier);
+                    const baseMax = stockPrice * (1 + rangeMultiplier);
 
-                    // Use query strike prices if available, otherwise surface data
-                    let xMin, xMax;
-                    if (queryStrikePrices && queryStrikePrices.length > 0) {
-                      xMin = Math.min(...queryStrikePrices);
-                      xMax = Math.max(...queryStrikePrices);
+                    // Find actual min/max stock prices that have data
+                    const stockPriceIndicesWithData = surfaceData.stock_prices
+                      .map((_, idx) => idx)
+                      .filter(idx => surfaceData.premium_grid[idx].some(p => p !== null));
+
+                    let yMin, yMax;
+                    if (stockPriceIndicesWithData.length > 0) {
+                      const pricesWithData = stockPriceIndicesWithData.map(idx => surfaceData.stock_prices[idx]);
+                      yMin = Math.min(...pricesWithData);
+                      yMax = Math.max(...pricesWithData);
                     } else {
-                      xMin = Math.min(...surfaceData.strike_prices);
-                      xMax = Math.max(...surfaceData.strike_prices);
+                      yMin = baseMin;
+                      yMax = baseMax;
                     }
+
+                    // Strike Price range (X-axis)
+                    let defaultXMin, defaultXMax;
+                    if (optionType.toLowerCase() === 'call') {
+                      defaultXMin = stockPrice * 0.99;
+                      defaultXMax = stockPrice * 1.10;
+                    } else {
+                      defaultXMin = stockPrice * 0.90;
+                      defaultXMax = stockPrice * 1.01;
+                    }
+
+                    const dbXMin = Math.min(...surfaceData.strike_prices);
+                    const dbXMax = Math.max(...surfaceData.strike_prices);
+
+                    const xMin = Math.max(defaultXMin, dbXMin);
+                    const xMax = Math.min(defaultXMax, dbXMax);
 
                     setXAxisRange([xMin, xMax]);
                     setYAxisRange([yMin, yMax]);
@@ -668,53 +699,58 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         />
       </div>
 
-      <div className="surface-3d-interpretation">
-        <h4>📊 How to Read This 3D Surface:</h4>
-        <ul>
-          <li>
-            <strong>X-axis (Strike Price):</strong> Different strike prices for the option.
-            Default range shows all available strike prices from your data.
-          </li>
-          <li>
-            <strong>Y-axis (Stock Price):</strong> The underlying stock price at collection time.
-            Default range is current stock price ±5%.
-          </li>
-          <li>
-            <strong>Z-axis (Premium):</strong> The option premium height - either absolute dollar value or relative percentage of strike price
-          </li>
-          <li>
-            <strong>Axis Range Sliders:</strong> Adjust the X-axis (strike price) and Y-axis (stock price) ranges
-            to zoom into specific regions of interest. Use the sliders to set min/max values for each axis.
-          </li>
-          <li>
-            <strong>View Mode Toggle:</strong> Switch between absolute premiums ($) and relative premiums (% of strike price)
-            to compare options across different strike levels
-          </li>
-          <li>
-            <strong>Color gradient:</strong> Blue (low premiums) → Yellow (medium) → Red (high premiums).
-            Colors dynamically adjust based on the visible data range when you change axis sliders.
-          </li>
-          <li>
-            <strong>Contour lines:</strong> Show equal-premium levels projected on the floor
-          </li>
-          <li>
-            <strong>Interactive controls:</strong>
-            <ul>
-              <li><strong>Rotate:</strong> Click and drag to view from different angles</li>
-              <li><strong>Zoom:</strong> Scroll wheel to zoom in/out on specific regions</li>
-              <li><strong>Pan:</strong> Hold Shift + drag to pan the view</li>
-              <li><strong>Box select:</strong> Drag to select and zoom into a specific area</li>
-              <li><strong>Reset:</strong> Use the "Reset axes" button in the toolbar to restore default ranges</li>
-            </ul>
-          </li>
-        </ul>
-        <p className="interpretation-insight">
-          <strong>💡 Insight:</strong> The surface shape reveals how option premiums respond to both
-          strike price selection and stock price movements. Steeper slopes indicate higher sensitivity
-          to price changes. Red peaks show expensive premiums, blue valleys show cheaper options.
-          Toggle between absolute and relative views to understand premium costs in different contexts.
-          Use the axis sliders to focus on specific strike/stock price ranges of interest!
-        </p>
+      <div className={`expandable-section ${isExpanded ? 'expanded' : ''}`}>
+        <div className="expandable-header" onClick={() => setIsExpanded(!isExpanded)}>
+          <h4>📊 How to Read This 3D Surface</h4>
+          <span className="toggle-icon">▼</span>
+        </div>
+        <div className="expandable-content">
+          <ul>
+            <li>
+              <strong>X-axis (Strike Price):</strong> Different strike prices for the option.
+              Default range shows all available strike prices from your data.
+            </li>
+            <li>
+              <strong>Y-axis (Stock Price):</strong> The underlying stock price at collection time.
+              Default range is current stock price ±5% (autofilled) or tighter if data is sparse.
+            </li>
+            <li>
+              <strong>Z-axis (Premium):</strong> The option premium height - either absolute dollar value or relative percentage of strike price
+            </li>
+            <li>
+              <strong>Axis Range Sliders:</strong> Adjust the X-axis (strike price) and Y-axis (stock price) ranges
+              to zoom into specific regions of interest. Use the sliders to set min/max values for each axis.
+            </li>
+            <li>
+              <strong>View Mode Toggle:</strong> Switch between absolute premiums ($) and relative premiums (% of strike price)
+              to compare options across different strike levels
+            </li>
+            <li>
+              <strong>Color gradient:</strong> Blue (low premiums) → Yellow (medium) → Red (high premiums).
+              Colors dynamically adjust based on the visible data range when you change axis sliders.
+            </li>
+            <li>
+              <strong>Contour lines:</strong> Show equal-premium levels projected on the floor
+            </li>
+            <li>
+              <strong>Interactive controls:</strong>
+              <ul>
+                <li><strong>Rotate:</strong> Click and drag to view from different angles</li>
+                <li><strong>Zoom:</strong> Scroll wheel to zoom in/out on specific regions</li>
+                <li><strong>Pan:</strong> Hold Shift + drag to pan the view</li>
+                <li><strong>Box select:</strong> Drag to select and zoom into a specific area</li>
+                <li><strong>Reset:</strong> Use the "Reset axes" button in the toolbar to restore default ranges</li>
+              </ul>
+            </li>
+          </ul>
+          <p className="interpretation-insight">
+            <strong>💡 Insight:</strong> The surface shape reveals how option premiums respond to both
+            strike price selection and stock price movements. Steeper slopes indicate higher sensitivity
+            to price changes. Red peaks show expensive premiums, blue valleys show cheaper options.
+            Toggle between absolute and relative views to understand premium costs in different contexts.
+            Use the axis sliders to focus on specific strike/stock price ranges of interest!
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -31,13 +31,14 @@ const PremiumBoxPlot: React.FC<PremiumBoxPlotProps> = ({
   dataPoints,
   stockPriceRange,
 }) => {
+  const [isExpanded, setIsExpanded] = React.useState(false);
   // Group data into stock price bins
   const binData = useMemo(() => {
     if (dataPoints.length === 0) return [];
 
     // Determine number of bins (use Sturges' formula, similar to histogram)
     const numBins = Math.max(5, Math.min(10, Math.ceil(Math.log2(dataPoints.length) + 1)));
-    
+
     // Calculate bin width
     const range = stockPriceRange.max - stockPriceRange.min;
     const binWidth = range / numBins;
@@ -50,7 +51,7 @@ const PremiumBoxPlot: React.FC<PremiumBoxPlotProps> = ({
       const binMin = stockPriceRange.min + i * binWidth;
       const binMax = binMin + binWidth;
       const binLabel = `$${binMin.toFixed(2)}-$${binMax.toFixed(2)}`;
-      
+
       bins[binLabel] = [];
       binRanges.push({ min: binMin, max: binMax, label: binLabel });
     }
@@ -186,20 +187,25 @@ const PremiumBoxPlot: React.FC<PremiumBoxPlotProps> = ({
         />
       </div>
 
-      <div className="box-plot-interpretation">
-        <h4>📊 How to Read This Plot:</h4>
-        <ul>
-          <li><strong>Each box</strong> represents premiums within a stock price range</li>
-          <li><strong>Box boundaries</strong> show the 25th and 75th percentiles (middle 50% of data)</li>
-          <li><strong>Line inside box</strong> is the median premium</li>
-          <li><strong>Diamond marker</strong> shows the mean (average) premium</li>
-          <li><strong>Whiskers</strong> extend to show the data range (excluding outliers)</li>
-          <li><strong>Outlier points</strong> appear as individual dots beyond the whiskers</li>
-        </ul>
-        <p className="interpretation-insight">
-          <strong>💡 Insight:</strong> This shows how option premiums vary with the underlying stock price.
-          Higher stock prices typically lead to different premium ranges for the same strike.
-        </p>
+      <div className={`expandable-section ${isExpanded ? 'expanded' : ''}`}>
+        <div className="expandable-header" onClick={() => setIsExpanded(!isExpanded)}>
+          <h4>📊 How to Read This Plot</h4>
+          <span className="toggle-icon">▼</span>
+        </div>
+        <div className="expandable-content">
+          <ul>
+            <li><strong>Each box</strong> represents premiums within a stock price range</li>
+            <li><strong>Box boundaries</strong> show the 25th and 75th percentiles (middle 50% of data)</li>
+            <li><strong>Line inside box</strong> is the median premium</li>
+            <li><strong>Diamond marker</strong> shows the mean (average) premium</li>
+            <li><strong>Whiskers</strong> extend to show the data range (excluding outliers)</li>
+            <li><strong>Outlier points</strong> appear as individual dots beyond the whiskers</li>
+          </ul>
+          <p className="interpretation-insight">
+            <strong>💡 Insight:</strong> This shows how option premiums vary with the underlying stock price.
+            Higher stock prices typically lead to different premium ranges for the same strike.
+          </p>
+        </div>
       </div>
     </div>
   );
