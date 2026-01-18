@@ -51,7 +51,7 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
   const [boxPlotError, setBoxPlotError] = useState<string | null>(null);
   const [selectedBoxPlotStrike, setSelectedBoxPlotStrike] = useState<number | null>(null);
 
-  const [show3DSurface, setShow3DSurface] = useState(false);
+  const [show3DSurface] = useState(true);
 
   // Strike price navigation state
   const STRIKES_PER_PAGE = 10;
@@ -118,7 +118,7 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
 
   // Find the closest strike price to highlight
   const getClosestStrike = () => {
-    if (!response || !queryRequest) return null;
+    if (!response || !queryRequest || response.results.length === 0) return null;
     const referenceStrike = queryRequest.strike_price;
     let closest = response.results[0].strike_price;
     let minDiff = Math.abs(closest - referenceStrike);
@@ -410,78 +410,71 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
           <div className="results-summary">
             <p><strong>Total Results:</strong> {response.results.length} strike/duration combinations</p>
             <p><strong>Total Data Points:</strong> {response.results.reduce((sum, r) => sum + r.data_points, 0)}</p>
-            <button
-              className="surface-3d-toggle-btn"
-              onClick={() => setShow3DSurface(!show3DSurface)}
-              style={{ width: '100%', padding: '8px' }}
-            >
-              {show3DSurface ? '✕ Hide' : '🎲 View'} 3D Premium Surface
-            </button>
           </div>
         </div>
+      </div>
 
-        {/* BOTTOM LEFT: Histogram Section */}
-        <div className="dashboard-card histogram-item">
-          {histogramLoading && (
-            <div className="card-loading">
-              <div className="spinner"></div>
-              <p>Loading histogram...</p>
-            </div>
-          )}
+      {/* BOTTOM LEFT: Histogram Section */}
+      <div className="dashboard-card histogram-item">
+        {histogramLoading && (
+          <div className="card-loading">
+            <div className="spinner"></div>
+            <p>Loading histogram...</p>
+          </div>
+        )}
 
-          {histogramError && (
-            <div className="card-error">
-              <p>Error: {histogramError}</p>
-            </div>
-          )}
+        {histogramError && (
+          <div className="card-error">
+            <p>Error: {histogramError}</p>
+          </div>
+        )}
 
-          {histogramData && !histogramLoading && !histogramError ? (
-            <PremiumHistogram
-              premiums={histogramData.premiums}
-              ticker={histogramData.ticker}
-              optionType={histogramData.optionType}
-              strikePrice={histogramData.strikePrice}
-              durationDays={histogramData.durationDays}
-              dataPoints={histogramData.dataPoints}
-            />
-          ) : !histogramLoading && !histogramError && (
-            <div className="placeholder-content">
-              <p>Select a strike to view distribution</p>
-            </div>
-          )}
-        </div>
+        {histogramData && !histogramLoading && !histogramError ? (
+          <PremiumHistogram
+            premiums={histogramData.premiums}
+            ticker={histogramData.ticker}
+            optionType={histogramData.optionType}
+            strikePrice={histogramData.strikePrice}
+            durationDays={histogramData.durationDays}
+            dataPoints={histogramData.dataPoints}
+          />
+        ) : !histogramLoading && !histogramError && (
+          <div className="placeholder-content">
+            <p>Select a strike to view distribution</p>
+          </div>
+        )}
+      </div>
 
-        {/* BOTTOM RIGHT: Box Plot Section */}
-        <div className="dashboard-card boxplot-item">
-          {boxPlotLoading && (
-            <div className="card-loading">
-              <div className="spinner"></div>
-              <p>Loading box plot...</p>
-            </div>
-          )}
+      {/* BOTTOM RIGHT: Box Plot Section */}
+      <div className="dashboard-card boxplot-item">
+        {boxPlotLoading && (
+          <div className="card-loading">
+            <div className="spinner"></div>
+            <p>Loading box plot...</p>
+          </div>
+        )}
 
-          {boxPlotError && (
-            <div className="card-error">
-              <p>Error: {boxPlotError}</p>
-            </div>
-          )}
+        {boxPlotError && (
+          <div className="card-error">
+            <p>Error: {boxPlotError}</p>
+          </div>
+        )}
 
-          {boxPlotData && !boxPlotLoading && !boxPlotError ? (
-            <PremiumBoxPlot
-              ticker={boxPlotData.ticker}
-              optionType={boxPlotData.optionType}
-              strikePrice={boxPlotData.strikePrice}
-              durationDays={boxPlotData.durationDays}
-              currentStockPrice={response?.current_stock_price}
-              dataPoints={boxPlotData.dataPoints}
-              stockPriceRange={boxPlotData.stockPriceRange}
-            />
-          ) : !boxPlotLoading && !boxPlotError && (
-            <div className="placeholder-content">
-              <p>Select a strike to view box plot</p>
-            </div>
-          )}
-        </div>
+        {boxPlotData && !boxPlotLoading && !boxPlotError ? (
+          <PremiumBoxPlot
+            ticker={boxPlotData.ticker}
+            optionType={boxPlotData.optionType}
+            strikePrice={boxPlotData.strikePrice}
+            durationDays={boxPlotData.durationDays}
+            currentStockPrice={response?.current_stock_price}
+            dataPoints={boxPlotData.dataPoints}
+            stockPriceRange={boxPlotData.stockPriceRange}
+          />
+        ) : !boxPlotLoading && !boxPlotError && (
+          <div className="placeholder-content">
+            <p>Select a strike to view box plot</p>
+          </div>
+        )}
       </div>
 
       {/* 3D Surface Section Overlay or Full Width Below */}
@@ -489,9 +482,7 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
         <div className="dashboard-card surface-card full-width">
           <PremiumSurface3D
             ticker={response.ticker}
-            optionType={
-              (response.option_type as any).toString().toLowerCase()
-            }
+            optionType={response.option_type}
             initialDuration={queryRequest.duration_days || 30}
             lookbackDays={queryRequest.lookback_days || 30}
             toleranceDays={queryRequest.duration_tolerance_days ?? 3}

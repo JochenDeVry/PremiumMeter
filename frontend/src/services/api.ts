@@ -33,24 +33,24 @@ const getApiBaseUrl = (): string => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
+
   // Otherwise, derive from current location
   const protocol = window.location.protocol;
   const hostname = window.location.hostname;
   const port = window.location.port;
-  
+
   // If on localhost with a specific port, backend is likely on port 8000
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return `${protocol}//${hostname}:8000`;
   }
-  
+
   // For production/NAS deployment, assume backend is on same host with /api prefix
   // or use the same port as frontend if port is specified
   if (port && port !== '80' && port !== '443') {
     // If frontend is on a custom port, try backend on 8000
     return `${protocol}//${hostname}:8000`;
   }
-  
+
   // Default: same origin (for reverse proxy setups)
   return `${protocol}//${hostname}${port ? ':' + port : ''}`;
 };
@@ -75,9 +75,9 @@ class APIClient {
       (error: AxiosError<ErrorResponse>) => {
         if (error.response) {
           // Server responded with error status
-          const errorData = error.response.data;
+          const errorData = error.response.data as any;
           throw new APIError(
-            errorData.message || 'An error occurred',
+            errorData.detail || errorData.message || 'An error occurred',
             error.response.status,
             errorData.error,
             errorData.details,
@@ -282,7 +282,7 @@ class APIClient {
     if (polling_interval_minutes !== undefined) params.polling_interval_minutes = polling_interval_minutes;
     if (stock_delay_seconds !== undefined) params.stock_delay_seconds = stock_delay_seconds;
     if (max_expirations !== undefined) params.max_expirations = max_expirations;
-    
+
     const response = await this.client.get<RateLimitCalculation>('/api/scheduler/rate-calculation', { params });
     return response.data;
   }
@@ -303,8 +303,8 @@ class APIClient {
   // Stock Endpoints
   // ==========================================================================
 
-  async listAllStocks(): Promise<Array<{ticker: string, company_name: string}>> {
-    const response = await this.client.get<Array<{ticker: string, company_name: string}>>('/api/stocks');
+  async listAllStocks(): Promise<Array<{ ticker: string, company_name: string }>> {
+    const response = await this.client.get<Array<{ ticker: string, company_name: string }>>('/api/stocks');
     return response.data;
   }
 
@@ -318,8 +318,8 @@ class APIClient {
     return response.data;
   }
 
-  async getUSStocks(): Promise<{stocks: Array<{ticker: string, company_name: string}>, total_count: number}> {
-    const response = await this.client.get<{stocks: Array<{ticker: string, company_name: string}>, total_count: number}>('/api/us-stocks');
+  async getUSStocks(): Promise<{ stocks: Array<{ ticker: string, company_name: string }>, total_count: number }> {
+    const response = await this.client.get<{ stocks: Array<{ ticker: string, company_name: string }>, total_count: number }>('/api/us-stocks');
     return response.data;
   }
 

@@ -21,6 +21,7 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [optionType, setOptionType] = useState<OptionType>(OptionType.PUT);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);  // Track if user is actively searching
   const [strikeMode, setStrikeMode] = useState<StrikeMode>(StrikeMode.NEAREST);
   const [strikePrice, setStrikePrice] = useState<string>('270');
@@ -146,6 +147,13 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
     };
   }, []);
 
+  // Automatically focus the search input when search mode is activated
+  useEffect(() => {
+    if (isSearching && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearching]);
+
   const handleStockSelect = (selectedTicker: string) => {
     const stock = stocks.find(s => s.ticker === selectedTicker);
     setTicker(selectedTicker);
@@ -239,6 +247,8 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
                 <input
                   type="text"
                   id="ticker"
+                  ref={searchInputRef}
+                  autoFocus
                   value={searchTerm}
                   onChange={handleSearchChange}
                   onFocus={handleInputFocus}
@@ -388,14 +398,13 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
         <h3>Stock Price Matching</h3>
 
         <div className="form-group">
-          <label>Reference Price ($)</label>
+          <label>Current Stock Price ($)</label>
           <div className="current-price-display">
             {currentStockPrice !== null ? (
-              <span className="price-value">${currentStockPrice.toFixed(2)}</span>
+              <span>${currentStockPrice.toFixed(2)}</span>
             ) : (
               <span className="price-loading">Fetching price...</span>
             )}
-            <small className="form-help">Current stock price used for range filtering</small>
           </div>
         </div>
 

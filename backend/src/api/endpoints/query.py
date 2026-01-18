@@ -7,7 +7,7 @@ Implements User Story 1 API contract per contracts/openapi.yaml.
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 import logging
 
 from ...database.connection import get_db
@@ -378,7 +378,7 @@ class PremiumSurfaceResponse(BaseModel):
     duration_days: int
     strike_prices: List[float]
     stock_prices: List[float]
-    premium_grid: List[List[float]]  # 2D grid: premium_grid[stock_price_idx][strike_price_idx]
+    premium_grid: List[List[Optional[float]]]  # 2D grid: premium_grid[stock_price_idx][strike_price_idx]
     data_point_counts: List[List[int]]  # Count of data points for each cell
     total_points: int
     collection_period: dict

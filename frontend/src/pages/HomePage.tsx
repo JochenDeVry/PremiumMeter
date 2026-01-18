@@ -33,25 +33,16 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="container">
-      <h1>Options Premium Analyzer</h1>
-      
-      <section className="section">
-        <h2>Query Historical Premium Data</h2>
-        <p>
-          Search historical options premium data with flexible strike price matching
-          (exact, percentage range, or nearest strikes) and duration filtering.
-        </p>
-      </section>
-
+      <h1>Query Historical Premium Data</h1>
       <div className="query-section-fullwidth">
         <div className="query-form-wrapper-fullwidth">
           <QueryForm onSubmit={handleQuery} loading={loading} />
         </div>
 
         <div className="query-results-wrapper-fullwidth">
-          <PremiumResults 
-            response={response} 
-            loading={loading} 
+          <PremiumResults
+            response={response}
+            loading={loading}
             error={error}
             queryRequest={lastRequest}
           />

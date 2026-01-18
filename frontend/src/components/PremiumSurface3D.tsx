@@ -38,9 +38,8 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
 
   const fetchCurrentStockPrice = async () => {
     try {
-      const response = await fetch(`/api/stocks/${ticker}/price`);
-      if (response.ok) {
-        const data = await response.json();
+      const data = await apiClient.getStockPrice(ticker);
+      if (data.latest_price !== null) {
         setCurrentStockPrice(data.latest_price);
         return data.latest_price;
       }
@@ -80,7 +79,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         // Find indices of strikes that match the query
         const strikeIndices: number[] = [];
         filteredStrikePrices = [];
-        
+
         queryStrikePrices.forEach(queryStrike => {
           const idx = data.strike_prices.findIndex(sp => Math.abs(sp - queryStrike) < 0.01);
           if (idx !== -1) {
@@ -90,7 +89,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         });
 
         // Filter the grid columns to only include matching strikes
-        filteredPremiumGrid = data.premium_grid.map(row => 
+        filteredPremiumGrid = data.premium_grid.map(row =>
           strikeIndices.map(idx => row[idx])
         );
         filteredDataPointCounts = data.data_point_counts.map(row =>
@@ -114,7 +113,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         const defaultYMax = stockPrice * 1.05;
         const dbYMin = Math.min(...data.stock_prices);
         const dbYMax = Math.max(...data.stock_prices);
-        
+
         // Use whichever range is wider to avoid compressing data into a narrow band
         const yMin = Math.min(defaultYMin, dbYMin);
         const yMax = Math.max(defaultYMax, dbYMax);
@@ -195,7 +194,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
   const allPremiums = surfaceData.premium_grid
     .flat()
     .filter((p): p is number => p !== null);
-  
+
   const stats = {
     minPremium: Math.min(...allPremiums),
     maxPremium: Math.max(...allPremiums),
@@ -207,20 +206,20 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
 
   // Calculate display values (absolute or relative)
   const displayGrid = showRelative
-    ? surfaceData.premium_grid.map((row, yIdx) =>
-        row.map((premium, xIdx) => {
-          if (premium === null) return null;
-          const strike = surfaceData.strike_prices[xIdx];
-          return (premium / strike) * 100; // Percentage of strike price
-        })
-      )
+    ? surfaceData.premium_grid.map((row) =>
+      row.map((premium, xIdx) => {
+        if (premium === null) return null;
+        const strike = surfaceData.strike_prices[xIdx];
+        return (premium / strike) * 100; // Percentage of strike price
+      })
+    )
     : surfaceData.premium_grid;
 
   // Calculate stats for display values
   const allDisplayValues = displayGrid
     .flat()
     .filter((p): p is number => p !== null);
-  
+
   const displayStats = {
     min: Math.min(...allDisplayValues),
     max: Math.max(...allDisplayValues),
@@ -246,9 +245,9 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         row.forEach((value, xIdx) => {
           const strikePrice = surfaceData.strike_prices[xIdx];
           // Check if this strike price is within x-axis range and value is within z-axis range
-          if (value !== null && 
-              strikePrice >= xAxisRange[0] && strikePrice <= xAxisRange[1] &&
-              value >= zAxisRange[0] && value <= zAxisRange[1]) {
+          if (value !== null &&
+            strikePrice >= xAxisRange[0] && strikePrice <= xAxisRange[1] &&
+            value >= zAxisRange[0] && value <= zAxisRange[1]) {
             visibleValues.push(value);
           }
         });
@@ -446,7 +445,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
               <div className="control-group">
                 <label htmlFor="z-axis-min-slider">
                   <strong>{showRelative ? 'Premium % Range (Z-axis):' : 'Premium Range (Z-axis):'}</strong>{' '}
-                  {showRelative 
+                  {showRelative
                     ? `${zAxisRange[0].toFixed(2)}% - ${zAxisRange[1].toFixed(2)}%`
                     : `$${zAxisRange[0].toFixed(2)} - $${zAxisRange[1].toFixed(2)}`
                   }
@@ -515,7 +514,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         <div className="stat-item">
           <span className="stat-label">{showRelative ? 'Premium % Range:' : 'Premium Range:'}</span>
           <span className="stat-value primary">
-            {showRelative 
+            {showRelative
               ? `${displayStats.min.toFixed(2)}% - ${displayStats.max.toFixed(2)}%`
               : `$${displayStats.min.toFixed(2)} - $${displayStats.max.toFixed(2)}`
             }
@@ -524,7 +523,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         <div className="stat-item">
           <span className="stat-label">{showRelative ? 'Avg Premium %:' : 'Avg Premium:'}</span>
           <span className="stat-value primary">
-            {showRelative 
+            {showRelative
               ? `${displayStats.avg.toFixed(2)}%`
               : `$${displayStats.avg.toFixed(2)}`
             }
@@ -555,15 +554,15 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                 len: 0.7,
                 ticktext: showRelative
                   ? [
-                      `${visibleStats.min.toFixed(2)}%`,
-                      `${((visibleStats.min + visibleStats.max) / 2).toFixed(2)}%`,
-                      `${visibleStats.max.toFixed(2)}%`
-                    ]
+                    `${visibleStats.min.toFixed(2)}%`,
+                    `${((visibleStats.min + visibleStats.max) / 2).toFixed(2)}%`,
+                    `${visibleStats.max.toFixed(2)}%`
+                  ]
                   : [
-                      `$${visibleStats.min.toFixed(2)}`,
-                      `$${((visibleStats.min + visibleStats.max) / 2).toFixed(2)}`,
-                      `$${visibleStats.max.toFixed(2)}`
-                    ],
+                    `$${visibleStats.min.toFixed(2)}`,
+                    `$${((visibleStats.min + visibleStats.max) / 2).toFixed(2)}`,
+                    `$${visibleStats.max.toFixed(2)}`
+                  ],
                 tickvals: [0, 0.5, 1],
               },
               contours: {
@@ -576,19 +575,19 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
               },
               hovertemplate: showRelative
                 ? '<b>Strike:</b> $%{x:.2f}<br>' +
-                  '<b>Stock Price:</b> $%{y:.2f}<br>' +
-                  '<b>Premium:</b> %{z:.2f}%<br>' +
-                  '<extra></extra>'
+                '<b>Stock Price:</b> $%{y:.2f}<br>' +
+                '<b>Premium:</b> %{z:.2f}%<br>' +
+                '<extra></extra>'
                 : '<b>Strike:</b> $%{x:.2f}<br>' +
-                  '<b>Stock Price:</b> $%{y:.2f}<br>' +
-                  '<b>Premium:</b> $%{z:.2f}<br>' +
-                  '<extra></extra>',
+                '<b>Stock Price:</b> $%{y:.2f}<br>' +
+                '<b>Premium:</b> $%{z:.2f}<br>' +
+                '<extra></extra>',
             },
           ]}
           layout={{
             title: `Premium Surface - ${durationDays} Days to Expiration (${showRelative ? 'Relative %' : 'Absolute $'})`,
             scene: {
-              xaxis: { 
+              xaxis: {
                 title: 'Strike Price ($)',
                 range: xAxisRange ? [xAxisRange[0], xAxisRange[1]] : undefined,
                 autorange: xAxisRange ? false : true,
@@ -597,7 +596,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                   clipmax: xAxisRange ? xAxisRange[1] : undefined,
                 },
               },
-              yaxis: { 
+              yaxis: {
                 title: 'Stock Price ($)',
                 range: yAxisRange ? [yAxisRange[0], yAxisRange[1]] : undefined,
                 autorange: yAxisRange ? false : true,
@@ -606,7 +605,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                   clipmax: yAxisRange ? yAxisRange[1] : undefined,
                 },
               },
-              zaxis: { 
+              zaxis: {
                 title: showRelative ? 'Premium (% of Strike)' : 'Premium ($)',
                 range: zAxisRange ? [zAxisRange[0], zAxisRange[1]] : undefined,
                 autorange: zAxisRange ? false : true,
@@ -632,12 +631,12 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                   height: 600,
                   path: 'M255.545 8c-66.269.119-126.438 26.233-170.86 68.685L48.971 40.971C33.851 25.851 8 36.559 8 57.941V192c0 13.255 10.745 24 24 24h134.059c21.382 0 32.09-25.851 16.971-40.971l-41.75-41.75c30.864-28.899 70.801-44.907 113.23-45.273 92.398-.798 170.283 73.977 169.484 169.442C423.236 348.009 349.816 424 256 424c-41.127 0-79.997-14.678-110.63-41.556-4.743-4.161-11.906-3.908-16.368.553L89.34 422.659c-4.872 4.872-4.631 12.815.482 17.433C133.798 479.813 192.074 504 256 504c136.966 0 247.999-111.033 248-247.998C504.001 119.193 392.354 7.755 255.545 8z',
                 },
-                click: function(gd: any) {
+                click: function (gd: any) {
                   // Reset to default ranges
                   if (surfaceData && currentStockPrice) {
                     const yMin = currentStockPrice * 0.95;
                     const yMax = currentStockPrice * 1.05;
-                    
+
                     // Use query strike prices if available, otherwise surface data
                     let xMin, xMax;
                     if (queryStrikePrices && queryStrikePrices.length > 0) {
@@ -647,11 +646,11 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                       xMin = Math.min(...surfaceData.strike_prices);
                       xMax = Math.max(...surfaceData.strike_prices);
                     }
-                    
+
                     setXAxisRange([xMin, xMax]);
                     setYAxisRange([yMin, yMax]);
                     setZAxisRange([displayStats.min, displayStats.max]);
-                    
+
                     const update = {
                       'scene.xaxis.range': [xMin, xMax],
                       'scene.yaxis.range': [yMin, yMax],
@@ -673,22 +672,22 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
         <h4>📊 How to Read This 3D Surface:</h4>
         <ul>
           <li>
-            <strong>X-axis (Strike Price):</strong> Different strike prices for the option. 
+            <strong>X-axis (Strike Price):</strong> Different strike prices for the option.
             Default range shows all available strike prices from your data.
           </li>
           <li>
-            <strong>Y-axis (Stock Price):</strong> The underlying stock price at collection time. 
+            <strong>Y-axis (Stock Price):</strong> The underlying stock price at collection time.
             Default range is current stock price ±5%.
           </li>
           <li>
             <strong>Z-axis (Premium):</strong> The option premium height - either absolute dollar value or relative percentage of strike price
           </li>
           <li>
-            <strong>Axis Range Sliders:</strong> Adjust the X-axis (strike price) and Y-axis (stock price) ranges 
+            <strong>Axis Range Sliders:</strong> Adjust the X-axis (strike price) and Y-axis (stock price) ranges
             to zoom into specific regions of interest. Use the sliders to set min/max values for each axis.
           </li>
           <li>
-            <strong>View Mode Toggle:</strong> Switch between absolute premiums ($) and relative premiums (% of strike price) 
+            <strong>View Mode Toggle:</strong> Switch between absolute premiums ($) and relative premiums (% of strike price)
             to compare options across different strike levels
           </li>
           <li>
@@ -710,8 +709,8 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
           </li>
         </ul>
         <p className="interpretation-insight">
-          <strong>💡 Insight:</strong> The surface shape reveals how option premiums respond to both 
-          strike price selection and stock price movements. Steeper slopes indicate higher sensitivity 
+          <strong>💡 Insight:</strong> The surface shape reveals how option premiums respond to both
+          strike price selection and stock price movements. Steeper slopes indicate higher sensitivity
           to price changes. Red peaks show expensive premiums, blue valleys show cheaper options.
           Toggle between absolute and relative views to understand premium costs in different contexts.
           Use the axis sliders to focus on specific strike/stock price ranges of interest!
