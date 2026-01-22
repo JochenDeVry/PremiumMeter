@@ -1456,6 +1456,239 @@ body {
   font-size: 0.95rem;
 }
 
+/* Company Logo Styling */
+.stock-logo-mini {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: contain;
+  background: white;
+  padding: 1px;
+  border: 1px solid #000;
+}
+
+.company-logo-large {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: white;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 2;
+  border: 1px solid #000;
+}
+
+.company-logo-container {
+  position: relative;
+  width: 48px;
+  height: 48px;
+}
+
+.company-logo-fallback {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 1.5rem;
+  border-radius: 8px;
+  display: none;
+}
+
+.company-logo-container.fallback-active .company-logo-fallback {
+  display: flex;
+}
+
+.company-info-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.company-name-section {
+  flex: 1;
+  min-width: 200px;
+}
+
+.company-full-name {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff 0%, #a0aec0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.ticker-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(147, 51, 234, 0.2);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  border-radius: 4px;
+  color: #c084fc;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+
+.current-price-badge-large {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.current-price-badge-large .price-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #a0aec0;
+  letter-spacing: 0.5px;
+}
+
+.current-price-badge-large .price-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4ade80;
+}
+
+.stock-display-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stock-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Prominent Company Header Card */
+.company-prominent-header-card {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  background: linear-gradient(145deg, rgba(26, 31, 46, 0.9) 0%, rgba(18, 22, 33, 0.9) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.company-prominent-link {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.company-prominent-link:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.prominent-logo-container {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.prominent-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: white;
+  padding: 6px;
+  border: 2px solid #000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.prominent-logo-fallback {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 2.5rem;
+  font-weight: 800;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  display: none;
+}
+
+.fallback-active .prominent-logo-fallback {
+  display: flex;
+}
+
+.company-prominent-info {
+  flex: 1;
+}
+
+.company-prominent-name {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.company-prominent-ticker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.prominent-ticker-badge {
+  padding: 4px 12px;
+  background: rgba(79, 70, 229, 0.2);
+  border: 1px solid rgba(79, 70, 229, 0.4);
+  border-radius: 6px;
+  color: #818cf8;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.yahoo-finance-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #a0aec0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.yahoo-finance-link:after {
+  content: "↗";
+  font-size: 1.1rem;
+}
+
 /* Responsive Design */
 @media (max-width: 968px) {
   .query-section {

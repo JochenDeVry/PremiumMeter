@@ -185,6 +185,7 @@ class PremiumStatistics(BaseSchema):
 class PremiumQueryResponse(BaseSchema):
     """Response schema for premium query results"""
     ticker: str = Field(..., description="Stock ticker queried")
+    company_name: Optional[str] = Field(None, description="Company name")
     option_type: str = Field(..., description="Option type queried")
     query_timestamp: datetime = Field(default_factory=datetime.utcnow, description="When query was executed")
     current_stock_price: Optional[Decimal] = Field(None, description="Current stock price at query time")

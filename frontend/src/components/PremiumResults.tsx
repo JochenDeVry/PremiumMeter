@@ -246,6 +246,48 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
   return (
     <div className="results-container">
       <div className="results-grid">
+        {/* PROMINENT COMPANY HEADER: 100% Wide */}
+        <div className="company-prominent-header-card">
+          <a
+            href={`https://finance.yahoo.com/quote/${response.ticker.toUpperCase()}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="company-prominent-link"
+            title={`View ${response.ticker} on Yahoo Finance`}
+          >
+            <div className="prominent-logo-container">
+              <img
+                src={`/logos/${response.ticker.toUpperCase()}.png`}
+                alt=""
+                className="prominent-logo"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    parent.classList.add('fallback-active');
+                  }
+                }}
+              />
+              <div className="prominent-logo-fallback">
+                {response.ticker.charAt(0)}
+              </div>
+            </div>
+            <div className="company-prominent-info">
+              <h2 className="company-prominent-name">{response.company_name || response.ticker}</h2>
+              <div className="company-prominent-ticker-row">
+                <span className="prominent-ticker-badge">{response.ticker}</span>
+                <span className="yahoo-finance-link">Yahoo Finance</span>
+              </div>
+            </div>
+            {response.current_stock_price && (
+              <div className="current-price-badge">
+                <span className="price-label">Current Price</span>
+                <span className="price-value">${response.current_stock_price.toFixed(2)}</span>
+              </div>
+            )}
+          </a>
+        </div>
+
         {/* TOP LEFT: Intraday Stock Chart */}
         <div className="dashboard-card stock-chart-item">
           {response ? (
@@ -265,12 +307,6 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
           <div className="results-header">
             <div className="results-title-row">
               <h3>Premium Statistics</h3>
-              {response.current_stock_price && (
-                <div className="current-price-badge">
-                  <span className="price-label">Current Price</span>
-                  <span className="price-value">${response.current_stock_price.toFixed(2)}</span>
-                </div>
-              )}
             </div>
             <div className="results-meta">
               <span><strong>Ticker:</strong> {response.ticker}</span>

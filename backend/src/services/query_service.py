@@ -129,6 +129,7 @@ class QueryService:
         # Build response
         return PremiumQueryResponse(
             ticker=request.ticker.upper(),
+            company_name=stock.company_name,
             option_type=request.option_type.value,
             strike_mode=request.strike_mode.value,
             duration_days=request.duration_days,

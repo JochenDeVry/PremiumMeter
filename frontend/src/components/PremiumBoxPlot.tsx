@@ -108,12 +108,6 @@ const PremiumBoxPlot: React.FC<PremiumBoxPlotProps> = ({
           <h3>
             Premium vs Stock Price Box Plot - Strike: <strong>${strikePrice.toFixed(2)}</strong>
           </h3>
-          {currentStockPrice && (
-            <div className="current-price-badge">
-              <span className="price-label">Current Price</span>
-              <span className="price-value">${currentStockPrice.toFixed(2)}</span>
-            </div>
-          )}
         </div>
         <div className="box-plot-info">
           <span className="ticker-badge">{ticker}</span>

@@ -238,6 +238,12 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
                 className="stock-display-selected"
                 onClick={handleInputFocus}
               >
+                <img
+                  src={`/logos/${selectedStock.ticker.toUpperCase()}.png`}
+                  alt=""
+                  className="stock-logo-mini"
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                />
                 <span className="stock-ticker">{selectedStock.ticker}</span>
                 <span className="stock-name">{selectedStock.company_name}</span>
                 <span className="dropdown-arrow">▼</span>
@@ -269,6 +275,12 @@ const QueryForm: React.FC<QueryFormProps> = ({ onSubmit, loading = false }) => {
                     className="stock-dropdown-item"
                     onClick={() => handleStockSelect(stock.ticker)}
                   >
+                    <img
+                      src={`/logos/${stock.ticker.toUpperCase()}.png`}
+                      alt=""
+                      className="stock-logo-mini"
+                      onError={(e) => (e.currentTarget.style.display = 'none')}
+                    />
                     <span className="stock-ticker">{stock.ticker}</span>
                     <span className="stock-name">{stock.company_name}</span>
                   </div>
