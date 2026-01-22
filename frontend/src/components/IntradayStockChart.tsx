@@ -125,9 +125,10 @@ const IntradayStockChart: React.FC<IntradayStockChartProps> = ({ ticker, company
       <div className="intraday-header">
         <div className="chart-title-row">
           <h3>
-            {isHistorical ? 'Previous Day Stock Price' : 'Intraday Stock Price'} - {ticker}
+            {isHistorical ? 'Previous Day Stock Price' : 'Intraday Stock Price'}
           </h3>
           <div className="price-info">
+            <span className="update-label">Update Stock Price</span>
             <button
               className={`refresh-btn ${refreshing ? 'refreshing' : ''}`}
               onClick={handleRefresh}
@@ -136,10 +137,6 @@ const IntradayStockChart: React.FC<IntradayStockChartProps> = ({ ticker, company
             >
               🔄
             </button>
-            <span className="current-price">${latestPrice.toFixed(2)}</span>
-            <span className={`price-change ${priceChange >= 0 ? 'positive' : 'negative'}`}>
-              {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)} ({priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
-            </span>
           </div>
         </div>
         {isHistorical && (

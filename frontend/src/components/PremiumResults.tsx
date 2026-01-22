@@ -3,6 +3,7 @@ import { PremiumQueryResponse, PremiumResult, PremiumQueryRequest } from '../typ
 import PremiumHistogram from './PremiumHistogram';
 import PremiumBoxPlot from './PremiumBoxPlot';
 import PremiumSurface3D from './PremiumSurface3D';
+import PremiumScatter3D from './PremiumScatter3D';
 import IntradayStockChart from './IntradayStockChart';
 import apiClient from '../services/api';
 
@@ -438,18 +439,33 @@ const PremiumResults: React.FC<PremiumResultsProps> = ({ response, loading, erro
 
         {/* 3D Surface Section Overlay or Full Width Below */}
         {show3DSurface && response && queryRequest && (
-          <div className="dashboard-card surface-card full-width">
-            <PremiumSurface3D
-              ticker={response.ticker}
-              optionType={response.option_type}
-              initialDuration={queryRequest.duration_days || 30}
-              lookbackDays={queryRequest.lookback_days || 30}
-              toleranceDays={queryRequest.duration_tolerance_days ?? 3}
-              queryStrikePrices={response.results.map(r => r.strike_price)}
-              queryStockPrice={queryRequest.current_stock_price}
-              queryStockPriceRange={queryRequest.stock_price_range_percent}
-            />
-          </div>
+          <>
+            <div className="dashboard-card surface-card full-width">
+              <PremiumSurface3D
+                ticker={response.ticker}
+                optionType={response.option_type}
+                initialDuration={queryRequest.duration_days || 30}
+                lookbackDays={queryRequest.lookback_days || 30}
+                toleranceDays={queryRequest.duration_tolerance_days ?? 3}
+                queryStrikePrices={response.results.map(r => r.strike_price)}
+                queryStockPrice={queryRequest.current_stock_price}
+                queryStockPriceRange={queryRequest.stock_price_range_percent}
+              />
+            </div>
+
+            <div className="dashboard-card surface-card full-width">
+              <PremiumScatter3D
+                ticker={response.ticker}
+                optionType={response.option_type}
+                initialDuration={queryRequest.duration_days || 30}
+                lookbackDays={queryRequest.lookback_days || 30}
+                toleranceDays={queryRequest.duration_tolerance_days ?? 3}
+                queryStrikePrices={response.results.map(r => r.strike_price)}
+                queryStockPrice={queryRequest.current_stock_price}
+                queryStockPriceRange={queryRequest.stock_price_range_percent}
+              />
+            </div>
+          </>
         )}
       </div>
     </div >

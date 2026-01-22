@@ -298,12 +298,11 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
   return (
     <div className="surface-3d-container">
       <div className="surface-3d-header">
-        <h3>
-          3D Premium Surface
-        </h3>
-        <div className="surface-3d-info">
-          <span className="ticker-badge">{ticker}</span>
-          <span>{optionType.toUpperCase()}</span>
+        <h3>3D Premium Surface</h3>
+        <div className="surface-3d-meta">
+          <span><strong>Ticker:</strong> {ticker}</span>
+          <span><strong>Type:</strong> {optionType.toUpperCase()}</span>
+          <span><strong>Duration:</strong> {durationDays} days</span>
         </div>
       </div>
 
@@ -558,6 +557,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
               x: surfaceData.strike_prices,
               y: surfaceData.stock_prices,
               z: displayGrid,
+
               cauto: false,
               cmin: visibleStats.min,
               cmax: visibleStats.max,
@@ -598,6 +598,34 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
                 '<b>Premium:</b> $%{z:.2f}<br>' +
                 '<extra></extra>',
             },
+            // Add green line at current stock price - follows the surface contour
+            ...(currentStockPrice ? [{
+              type: 'scatter3d' as const,
+              mode: 'lines' as const,
+              x: surfaceData.strike_prices,
+              y: Array(surfaceData.strike_prices.length).fill(currentStockPrice),
+              z: (() => {
+                // Find the closest stock price index in our data
+                const closestYIdx = surfaceData.stock_prices.reduce((closest, sp, i) =>
+                  Math.abs(sp - currentStockPrice) < Math.abs(surfaceData.stock_prices[closest] - currentStockPrice) ? i : closest, 0);
+
+                // Get the premium values at this stock price for all strike prices
+                return surfaceData.strike_prices.map((_, xIdx) => {
+                  const premiumValue = displayGrid[closestYIdx]?.[xIdx];
+                  return premiumValue !== null && premiumValue !== undefined ? premiumValue : null;
+                });
+              })(),
+              line: {
+                color: '#22c55e',
+                width: 10,
+              },
+              name: `Current Price: $${currentStockPrice.toFixed(2)}`,
+              showlegend: true,
+              hovertemplate: '<b>Current Stock Price: $' + currentStockPrice.toFixed(2) + '</b><br>' +
+                '<b>Strike:</b> $%{x:.2f}<br>' +
+                (showRelative ? '<b>Premium:</b> %{z:.2f}%' : '<b>Premium:</b> $%{z:.2f}') +
+                '<extra></extra>',
+            }] : []),
           ]}
           layout={{
             title: `Premium Surface - ${durationDays} Days to Expiration (${showRelative ? 'Relative %' : 'Absolute $'})`,
@@ -623,7 +651,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
               aspectmode: 'auto',
             },
             autosize: true,
-            height: 700,
+            height: 900,
             margin: { t: 50, r: 0, b: 0, l: 0 },
           }}
           config={{
@@ -695,7 +723,7 @@ const PremiumSurface3D: React.FC<PremiumSurface3DProps> = ({
             ],
             modeBarButtonsToRemove: ['toImage'],
           }}
-          style={{ width: '100%', height: '700px' }}
+          style={{ width: '100%', height: '900px' }}
         />
       </div>
 

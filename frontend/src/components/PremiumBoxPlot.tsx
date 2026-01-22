@@ -105,14 +105,16 @@ const PremiumBoxPlot: React.FC<PremiumBoxPlotProps> = ({
     <div className="box-plot-container">
       <div className="box-plot-header">
         <div className="box-plot-title-row">
-          <h3>
-            Premium vs Stock Price Box Plot - Strike: <strong>${strikePrice.toFixed(2)}</strong>
-          </h3>
+          <h3>Premium vs Stock Price Box Plot</h3>
+          <div className="strike-price-badge">
+            <span className="price-label">Strike Price</span>
+            <span className="price-value">${strikePrice.toFixed(2)}</span>
+          </div>
         </div>
-        <div className="box-plot-info">
-          <span className="ticker-badge">{ticker}</span>
-          <span>{optionType.toUpperCase()}</span>
-          <span>{durationDays} days</span>
+        <div className="box-plot-meta">
+          <span><strong>Ticker:</strong> {ticker}</span>
+          <span><strong>Type:</strong> {optionType.toUpperCase()}</span>
+          <span><strong>Duration:</strong> {durationDays} days</span>
         </div>
       </div>
 

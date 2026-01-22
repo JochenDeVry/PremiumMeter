@@ -25,6 +25,12 @@
   align-items: center;
 }
 
+.update-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
 .refresh-btn {
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
@@ -112,10 +118,6 @@
   color: #9a3412;
   font-size: 0.9rem;
   font-weight: 500;
-}
-
-.intraday-chart-container.historical-fallback {
-  border-left: 4px solid #fb923c;
 }
 
 .data-date {
